@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Use SQLite for simplicity as configured in config.py default, 
+      # or override with Postgres if needed. 
+      # Ensuring the DB path is in the volume.
+      - DATABASE_URL=sqlite:///backend/database/predictions_v2.db
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:80
+      - USE_INFERENCE_API=true
+    volumes:
+      # Persist uploads and database
+      - backend_data:/app/backend/uploads
+      - backend_db:/app/backend/database
+      # Optional: Map ml_pipeline models if you want to drop them in without rebuilding
+      - ./ml_pipeline/h5_omnifusion/checkpoints:/app/ml_pipeline/h5_omnifusion/checkpoints
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+volumes:
+  backend_data:
+  backend_db:
+
+
+networks:
+  app-network:
+    driver: bridge

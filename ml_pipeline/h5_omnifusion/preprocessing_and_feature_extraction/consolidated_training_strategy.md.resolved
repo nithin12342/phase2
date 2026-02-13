@@ -1,0 +1,103 @@
+# H⁵-OmniFusion: The Definitive Training Strategy
+**Target**: >85% F1, Accuracy, Precision, Recall, AUC on DAIC-WOZ.
+**Status**: CONSOLIDATED BLUEPRINT (Synthesized from 12 Deep Research Reports).
+
+---
+
+## 1. Executive Summary: The "Alpha" Strategy
+Achieving ≥85% on DAIC-WOZ (N=189, 30% prevalence) is statistically improbable with standard training. The consensus from our deep research simulation identifies **5 Critical Levers** that must be pulled simultaneously to break the 0.80 ceiling:
+
+1.  **Asymmetric Focal Loss (AFL)**: Standard BCE/Focal Loss fails on 30% imbalance. AFL decouples the focusing parameter for positives ($\gamma+=2$) and negatives ($\gamma-=4$), strictly penalizing false positives while preserving recall.
+2.  **Phased "Thaw" Curriculum**: End-to-end training collapses to the strongest modality (Text). A 4-phase curriculum (Backbone Freeze → Unimodal Warmup → Fusion Warmup → Joint Finetune) is mandatory.
+3.  **Hypergraph + MoE Synergy**: Hypergraphs capture high-order correlations, while Quality-Aware MoE prevents noisy modalities (Video/Face) from corrupting the decision boundary. **Load Balancing Loss** is critical to prevent expert collapse.
+4.  **Orthogonal Regularization**: Forces modality embeddings to be distinct before fusion, preventing "Modality Collapse" where the model ignores Audio/Video in favor of Text.
+5.  **Calibration & Thresholding**: 85% Precision AND Recall is a thresholding problem. Standard $0.5$ threshold fails. We must optimize the decision threshold on the Validation set to maximize $min(Precision, Recall)$.
+
+---
+
+## 2. The Golden Path Training Protocol
+
+### Phase 0: Data & Architecture Prep
+*   **Split**: Stratified 5-Fold Cross-Validation (Subject-Independent). **CRITICAL**: Do not split by segment; split by Participant ID to prevent leakage.
+*   **Augmentation**: 
+    *   *Audio*: SpecAugment (Time/Freq masking), SNR-20dB Noise.
+    *   *Text*: None (clinical syntax is sensitive).
+    *   *Video*: Random Temporal Crop, no spatial flips (gaze direction matters).
+*   **Initialization**: 
+    *   Backbones: Pretrained (Wav2Vec2-Large, MentalRoBERTa, VideoMAE).
+    *   Fusion Layers: Xavier Uniform. 
+    *   **MoE Router**: Initialize with high entropy (random) to encourage exploration.
+
+### Phase 1: Unimodal Warmup (Epochs 1-10)
+**Goal**: Adapt projection layers to DAIC-WOZ without destroying pretrained backbones.
+*   **State**: Backbones **FROZEN**. Fusion **FROZEN**.
+*   **Trainable**: Modality Encoders (BiLSTMs), Projection Heads (768d), Output Heads.
+*   **Loss**: Standard BCE + MSE.
+*   **LR**: `1e-3` (High).
+
+### Phase 2: Fusion & MoE Warmup (Epochs 11-20)
+**Goal**: Teach the Hypergraph and MoE how to mix modalities before they are fully fine-tuned.
+*   **State**: Backbones **FROZEN**. Encoders **FROZEN**.
+*   **Trainable**: Hypergraph, Perceiver, MoE Router + Experts.
+*   **Loss**: $L_{total} = L_{class} + 0.01 \cdot L_{ortho} + 0.01 \cdot L_{load\_balance}$.
+*   **LR**: `5e-4`.
+*   **Constraint**: Use **Modality Dropout** ($p=0.2$ for Text, $p=0.1$ others) to force the fusion layer to rely on weaker modalities.
+
+### Phase 3: Joint Fine-Tuning (Epochs 21-40)
+**Goal**: End-to-end optimization.
+*   **State**: **ALL UNFROZEN**.
+*   **LR Strategy**: **Layer-wise Learning Rate Decay (LLRD)**.
+    *   Backbones: `1e-5` (decay `0.9` per layer).
+    *   Fusion/Heads: `1e-4`.
+*   **Loss**: Switch to **Asymmetric Focal Loss** ($\gamma+=2, \gamma-=4$) + **Uncertainty Weighting** for Multi-task (Binary + PHQ8).
+*   **Curriculum**: Introduce "Hard" samples (low confidence from Phase 2).
+
+### Phase 4: Calibration (Post-Training)
+*   **Temperature Scaling**: Optimize $T$ on validation logits (typically $T \approx 1.5-2.0$).
+*   **Threshold Finding**: Grid search $t \in [0.3, 0.7]$ to maximize F1. Expect optimal $t \approx 0.4$ due to imbalance.
+
+---
+
+## 3. Technical Reference: Hyperparameters & Losses
+
+### 3.1 Loss Function Specification
+$$L_{total} = \lambda_{cls} L_{AFL} + \lambda_{reg} L_{SmoothL1} + \lambda_{orth} L_{Orth} + \lambda_{bal} L_{MoE}$$
+
+| Component | Weight ($\lambda$) | Formula / Config | Rationale |
+| :--- | :--- | :--- | :--- |
+| **Asymmetric Focal** | Dynamic (GradNorm) | $\gamma_+=2, \gamma_-=4, m=0.05$ | Hard negative mining for low-prevalence depression. |
+| **PHQ-8 Reg** | Dynamic (GradNorm) | SmoothL1 ($\beta=1.0$) | Robust regression for 0-24 severity scores. |
+| **Orthogonal Reg** | `0.01` | $\|M^T M - I\|_F$ | Forces distinct modality representations. |
+| **MoE Balance** | `0.01` | Switch Transformer Aux Loss | Prevents routing collapse to single expert. |
+
+### 3.2 Hyperparameter Table
+| Parameter | Value | Notes |
+| :--- | :--- | :--- |
+| **Batch Size** | 16 (Accum=4 -> 64) | Small batch + Accumulation required for 5 backbones. |
+| **Optimizer** | AdamW | $\beta=(0.9, 0.999), \epsilon=1e-8, wd=0.01$. |
+| **Scheduler** | Cosine with Warmup | 1000 step warmup, then cosine decay to 0. |
+| **Dropout** | 0.3 (Encoders), 0.1 (Backbone) | Higher dropout on LSTM encoders to prevent overfit. |
+| **MoE Top-K** | 3 | Select 3 out of 6 experts (5 mod + 1 fusion). |
+| **MoE Capacity** | 1.25 | Allow 25% buffer for expert token limits. |
+
+---
+
+## 4. Risk Mitigation & Troubleshooting
+
+| Failure Mode | Detection | Countermeasure |
+| :--- | :--- | :--- |
+| **Modality Collapse** | Text expert utilization > 80% | increase **Modality Dropout** on Text to 0.4; increase **Orthogonal Reg** lambda. |
+| **Overfitting** | Train F1 > 0.95, Val F1 < 0.70 | Increase **Weight Decay** (0.05); Reduce **Backbone LR** (1e-6); Implementation **R-Drop**. |
+| **Gradient Explosion** | NaNs in loss | Enable **Gradient Clipping** (norm=1.0); Check **Hypergraph** adjacency matrix stability. |
+| **Precision/Recall Gap** | High Acc, Low Recall | Increase **Focal Gamma+**; Lower decision threshold; check **Oversampling** ratio (target 1:1). |
+
+---
+
+## 5. Implementation Checklist
+- [ ] **Data**: Verify 5-fold Subject-Independent Split (No patient overlap).
+- [ ] **Model**: Implement `AsymmetricFocalLoss` and `HybridMultiTaskLoss`.
+- [ ] **Training**: Implement the 4-Phase Curriculum Loop.
+- [ ] **MoE**: Ensure `load_balancing_loss` is added to total loss.
+- [ ] **Eval**: Implement Post-hoc Threshold Search on Validation set.
+
+> **Final Note**: This strategy is aggressive but necessary. The DAIC-WOZ dataset is small and noisy. Simple fine-tuning WILL fail. You must strictly adhere to the **Phased Curriculum** and **Asymmetric Loss** to see results >0.85.

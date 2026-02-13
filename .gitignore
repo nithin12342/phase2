@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment & Secrets
+.env
+.env.local
+*.env
+
+# Databases
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build Outputs
+frontend/build/
+
+# Logs
+*.log
+
+# Cache
+.cache/
+*.cache
+
+# Large files / Uploads
+backend/uploads/
+*.mp4
+*.avi
+*.mkv
+*.mov
+folder_structure_report.md
+large_files.txt
+large_files_list.txt
+extract_pdf.py
+
+# Models and Large Assets
+*.safetensors
+*.bin
+*.pth
+*.h5
+*.onnx
+ml_pipeline/h5_omnifusion/pretrained_models/
+large-xlsr-53/
+backend/backend/uploads/

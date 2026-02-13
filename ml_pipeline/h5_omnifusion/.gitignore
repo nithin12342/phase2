@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyTorch
+*.pt
+*.pth
+*.checkpoint
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# Project specific
+checkpoints/
+outputs/
+logs/
+
+# Data - ignore most but ALLOW Features_SOTA_2025 and labels
+data/*
+!data/Features_SOTA_2025/
+!data/__init__.py
+!data/dataset.py
+!data/labels.csv

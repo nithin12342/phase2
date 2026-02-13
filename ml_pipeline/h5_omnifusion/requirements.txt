@@ -1,0 +1,35 @@
+# H⁵-OmniFusion Requirements
+# Core Deep Learning
+torch>=2.0.0
+transformers>=4.30.0
+timm>=0.9.0
+einops>=0.6.0
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+
+# ML Utilities
+scikit-learn>=1.3.0
+
+# Progress & Logging
+tqdm>=4.65.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Audio Processing
+opensmile>=2.4.0  # For eGeMAPS features
+librosa>=0.10.0
+
+# Video/Image Processing
+opencv-python-headless>=4.8.0
+
+# MediaPipe (CRITICAL for 108-step Face/Gaze features)
+mediapipe==0.10.9
+protobuf==3.20.3  # STABLE version for Colab/MediaPipe 0.10.9
+
+# For Google Colab
+google-colab  # Auto-available in Colab
