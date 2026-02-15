@@ -1,0 +1,40 @@
+FROM python:3.10-slim-bullseye
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    libsndfile1 \
+    ffmpeg \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+COPY backend/requirements_azure.txt .
+RUN pip install --no-cache-dir -r requirements_azure.txt
+
+# Copy App Code
+COPY backend/ ./backend/
+COPY ml_pipeline/ ./ml_pipeline/
+
+# Hugging Face Spaces specifics:
+# 1. Runs as user 1000
+# 2. Expects app on port 7860
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    PYTHONPATH=/app
+
+# Prepare directories with correct permissions for User 1000
+USER root
+RUN mkdir -p backend/database backend/uploads/images backend/uploads/audio backend/uploads/video backend/uploads/text backend/uploads/tabular \
+    && mkdir -p ml_pipeline/h5_omnifusion/pretrained_models \
+    && mkdir -p ml_pipeline/h5_omnifusion/checkpoints \
+    && chown -R user:user /app
+USER user
+
+EXPOSE 7860
+
+# Start Application with loopback host and correct port
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860"]

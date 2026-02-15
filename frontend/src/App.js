@@ -272,9 +272,8 @@ function App() {
         )}
         {submitResult && (
           <div className="result-box success">
-            <strong>Success!</strong> Survey submitted with ID: {submitResult.id}
             {submitResult.depression_risk && (
-              <div className="risk-display" style={{ marginTop: '1rem', whiteSpace: 'pre-wrap', borderTop: '1px solid #ccc', paddingTop: '1rem' }}>
+              <div className="risk-display" style={{ whiteSpace: 'pre-wrap' }}>
                 {submitResult.depression_risk}
               </div>
             )}

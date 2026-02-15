@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: h5_omnifusion_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist Database
+      - ./backend/database:/app/backend/database
+
+      # Persist Uploads
+      - ./backend/uploads:/app/backend/uploads
+
+      # Mount Pretrained Models from Host (prevents huge image size)
+      - ./ml_pipeline/h5_omnifusion/pretrained_models:/app/ml_pipeline/h5_omnifusion/pretrained_models
+
+      # Mount Fusion Checkpoint
+      - ./ml_pipeline/h5_omnifusion/checkpoints:/app/ml_pipeline/h5_omnifusion/checkpoints
+
+    environment:
+      - MODE=PROD
+      - KMP_DUPLICATE_LIB_OK=TRUE
+
+    restart: unless-stopped
+
+    # Resource limits tailored for B2ms (2 vCPU, 8 GB RAM)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.8'
+          memory: 7G
+        reservations:
+          cpus: '1.0'
+          memory: 4G

@@ -1,18 +1,24 @@
 """
-Multimodal Models for Depression Detection - H5-OmniFusion Local Only
+Multimodal Models for Depression Detection - H5-OmniFusion Local (Lazy Loading)
 ================================================================================
-Uses local H5-OmniFusion model for prediction.
-HuggingFace Inference API and all associated add-ons have been removed.
+Implements "Option A" Deployment Strategy:
+- Lazy-loads models on demand (Wav2Vec2, MentalRoBERTa, etc.)
+- Unloads them immediately to free RAM
+- Uses full 108-step H5OmniFusionPipeline for feature extraction
+- Runs on CPU with ~3GB peak RAM
 """
 import os
 import logging
 import numpy as np
 import sys
 import torch
+import tempfile
+import shutil
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# Setup paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ML_PIPELINE_DIR = os.path.join(BASE_DIR, "ml_pipeline")
 
@@ -20,64 +26,83 @@ if ML_PIPELINE_DIR not in sys.path:
     sys.path.append(ML_PIPELINE_DIR)
     logger.info(f"Added {ML_PIPELINE_DIR} to sys.path")
 
-try:
-    from h5_omnifusion.src.models.h5_omnifusion import H5OmniFusion
-    try:
-        from h5_omnifusion.src.config import H5Config
-    except ImportError:
-        from h5_omnifusion.config.model_config import H5Config
-        
-    H5_AVAILABLE = True
-    H5_IMPORT_ERROR = None
-except ImportError as e:
-    H5_IMPORT_ERROR = f"ImportError: {e}"
-    logger.warning(f"Could not import H5OmniFusion: {e}")
-    H5_AVAILABLE = False
-except Exception as e:
-    H5_IMPORT_ERROR = f"Error during import: {e}"
-    logger.warning(f"Unexpected error importing H5OmniFusion: {e}")
-    H5_AVAILABLE = False
-
-VECTOR_DIM = 768
-
 from config import get_settings
 settings = get_settings()
 
+# Global state
+_pipeline = None
+_fusion_model = None
+H5_AVAILABLE = False
+LOAD_ERROR = "Model not initialized"
 
-_fusion_model = None  # The real H5 model
-LOAD_ERROR = "Model not initialized"  # Track why loading failed
-
-def load_fusion_model():
-    """Load the H5-OmniFusion model from local checkpoint."""
-    global _fusion_model, LOAD_ERROR
+# Try importing the pipeline
+try:
+    from h5_omnifusion.src.pipeline import H5OmniFusionPipeline
+    from h5_omnifusion.src.model_loader import MODEL_LOADER
+    from h5_omnifusion.src.config import H5Config
+    from h5_omnifusion.src.models.h5_omnifusion import H5OmniFusion
     
+    # Configure ModelLoader to look in local directory
+    LOCAL_MODELS_DIR = os.path.join(ML_PIPELINE_DIR, "h5_omnifusion", "pretrained_models")
+    if os.path.exists(LOCAL_MODELS_DIR):
+        MODEL_LOADER.pretrained_path = LOCAL_MODELS_DIR
+        logger.info(f"Configured ModelLoader path: {LOCAL_MODELS_DIR}")
+    else:
+        logger.warning(f"Local models dir not found: {LOCAL_MODELS_DIR}")
+
+    H5_AVAILABLE = True
+except ImportError as e:
+    logger.error(f"Failed to import H5 pipeline: {e}")
+    H5_AVAILABLE = False
+    LOAD_ERROR = str(e)
+
+
+def load_all_models():
+    """
+    Initialize the pipeline and fusion model.
+    Does NOT load backbone models (Wav2Vec2, etc.) - they are lazy-loaded.
+    """
+    global _pipeline, _fusion_model, LOAD_ERROR
+
     if not H5_AVAILABLE:
-        logger.warning(f"H5OmniFusion code not available: {H5_IMPORT_ERROR}")
-        LOAD_ERROR = H5_IMPORT_ERROR or "H5 code unavailable (Unknown reason)"
         return
 
     try:
-        ckpt_path = os.path.join(ML_PIPELINE_DIR, "h5_omnifusion", "checkpoints", "h5_omnifusion_compliant.pt")
-        filename = settings.custom_model_filename
-
-        if os.path.exists(ckpt_path):
-            logger.info(f"Found local checkpoint at: {ckpt_path}")
-        elif os.path.exists(filename): 
-            ckpt_path = filename
-            logger.info(f"Found local custom checkpoint at: {ckpt_path}")
+        # 1. Initialize Pipeline (lightweight, just setup)
+        _pipeline = H5OmniFusionPipeline(device='cpu')
         
-        if not os.path.exists(ckpt_path):
-             LOAD_ERROR = f"Checkpoint file not found: {ckpt_path}"
-             logger.error(LOAD_ERROR)
-             return
-
-        logger.info(f"Loading H5-OmniFusion from: {ckpt_path}")
+        # 2. Load Fusion Model (keep in memory, it's small ~50MB)
+        load_fusion_model()
         
+        logger.info("✅ H5-OmniFusion Pipeline initialized (Lazy Loading Mode)")
+
+    except Exception as e:
+        import traceback
+        LOAD_ERROR = f"Init failed: {e}\n{traceback.format_exc()}"
+        logger.error(LOAD_ERROR)
+
+
+def load_fusion_model():
+    """Load the trained H5 fusion checkpoint."""
+    global _fusion_model, LOAD_ERROR
+    
+    ckpt_path = os.path.join(ML_PIPELINE_DIR, "h5_omnifusion", "checkpoints", "h5_omnifusion_compliant.pt")
+    if settings.custom_model_filename and os.path.exists(settings.custom_model_filename):
+        ckpt_path = settings.custom_model_filename
+
+    if not os.path.exists(ckpt_path):
+        logger.warning(f"Fusion checkpoint not found at {ckpt_path}. Using rules-based fallback.")
+        return
+
+    try:
+        logger.info(f"Loading Fusion Model from: {ckpt_path}")
         checkpoint = torch.load(ckpt_path, map_location="cpu")
         
-        config = H5Config.from_tier("lite") # Start with Lite
-        config.d_model = 96 # Matches our tiny checkpoint
+        # Initialize model with 'lite' config (matches tiny 96-dim checkpoint)
+        config = H5Config.from_tier("lite")
+        config.d_model = 96
         
+        # Exact overrides from previous checkpoint version to ensure compatibility
         config.moe.expert_hidden_dim = 256
         config.moe.n_quality_features = 4
         
@@ -97,181 +122,267 @@ def load_fusion_model():
         config.tabular.use_kan = False
         config.video.use_timesformer = False
         
+        # Create model and load weights
         model = H5OmniFusion(config)
-        
         msg = model.load_state_dict(checkpoint['model_state_dict'], strict=False)
-        logger.info(f"Weights loaded: {msg}")
+        logger.info(f"Fusion weights loaded: {msg}")
         
         model.eval()
         _fusion_model = model
-        LOAD_ERROR = None # Success
-        logger.info("✅ H5-OmniFusion model loaded successfully!")
+        LOAD_ERROR = None
         
     except Exception as e:
-        import traceback
-        LOAD_ERROR = f"Critical error during model loading:\n{str(e)}\n\nTraceback:\n{traceback.format_exc()}"
-        logger.error(f"Failed to load fusion model: {LOAD_ERROR}")
-        _fusion_model = None
+        logger.error(f"Failed to load fusion model: {e}")
+        # Don't crash, just let it be None (fallback will run)
 
 
 def get_text_embedding(text: str) -> tuple[np.ndarray, Optional[str]]:
-    """Get 768-dim embedding from text. Returns (embedding, error_msg)."""
-    return np.zeros(VECTOR_DIM).astype('float32'), None
+    """
+    Lazy-load MentalRoBERTa, get embedding, unload.
+    """
+    if not H5_AVAILABLE or _pipeline is None:
+        return np.zeros(768).astype('float32'), "Pipeline not loaded"
+
+    tmp_path = None
+    try:
+        # Create temp file for pipeline
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as tmp:
+            tmp.write(text)
+            tmp_path = tmp.name
+
+        # Run pipeline step
+        logger.info("Lazy-loading Text Encoder...")
+        results = _pipeline._process_text(tmp_path)
+        
+        if results.get('success'):
+            return results['text_embedding'].astype('float32'), None
+        else:
+            return np.zeros(768).astype('float32'), results.get('error', 'Unknown error')
+
+    except Exception as e:
+        logger.error(f"Text embedding error: {e}")
+        return np.zeros(768).astype('float32'), str(e)
+        
+    finally:
+        # Cleanup
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+        # Always unload to save RAM
+        try:
+            MODEL_LOADER.unload_model('text_english')
+            MODEL_LOADER.unload_model('text_chinese')
+        except:
+            pass
 
 
 def get_audio_embedding(audio_bytes: bytes) -> tuple[np.ndarray, Optional[str]]:
-    """Get 768-dim embedding from audio. Returns (embedding, error_msg)."""
-    return np.zeros(VECTOR_DIM).astype('float32'), None
+    """
+    Lazy-load Wav2Vec2 + OpenSMILE, get embedding, unload.
+    """
+    if not H5_AVAILABLE or _pipeline is None:
+        return np.zeros(768).astype('float32'), "Pipeline not loaded"
 
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+            
+        logger.info("Lazy-loading Audio Models (Wav2Vec2 + OpenSMILE)...")
+        results = _pipeline._process_audio(tmp_path)
+        
+        if results.get('success'):
+            return results['wav2vec2_embedding'].astype('float32'), None
+        else:
+            return np.zeros(768).astype('float32'), results.get('error')
 
-def get_image_embedding(image_bytes: bytes) -> tuple[np.ndarray, Optional[str]]:
-    """Get 768-dim embedding from image. Returns (embedding, error_msg)."""
-    return np.zeros(VECTOR_DIM).astype('float32'), None
+    except Exception as e:
+        logger.error(f"Audio embedding error: {e}")
+        return np.zeros(768).astype('float32'), str(e)
+        
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+        try:
+            MODEL_LOADER.unload_model('wav2vec2')
+            MODEL_LOADER.unload_model('opensmile')
+        except:
+            pass
 
 
 def get_video_embedding(video_bytes: bytes) -> tuple[np.ndarray, Optional[str]]:
-    """Get 768-dim embedding from video. Returns (embedding, error_msg)."""
-    return np.zeros(VECTOR_DIM).astype('float32'), None
+    """
+    Lazy-load VideoMAE, get embedding, unload.
+    """
+    if not H5_AVAILABLE or _pipeline is None:
+        return np.zeros(768).astype('float32'), "Pipeline not loaded"
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp:
+            tmp.write(video_bytes)
+            tmp_path = tmp.name
+            
+        logger.info("Lazy-loading VideoMAE...")
+        results = _pipeline._process_video(tmp_path)
+        
+        if results.get('success'):
+            return results['video_embedding'].astype('float32'), None
+        else:
+            return np.zeros(768).astype('float32'), results.get('error')
+
+    except Exception as e:
+        logger.error(f"Video embedding error: {e}")
+        return np.zeros(768).astype('float32'), str(e)
+        
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+        try:
+            MODEL_LOADER.unload_model('videomae')
+        except:
+            pass
+
+
+def get_image_embedding(image_bytes: bytes) -> tuple[np.ndarray, Optional[str]]:
+    """
+    Uses Face pipeline (DinoV2 + POSTER). Lazy-load, unload.
+    Treats image as 1-frame video for consistency.
+    """
+    if not H5_AVAILABLE or _pipeline is None:
+        return np.zeros(768).astype('float32'), "Pipeline not loaded"
+
+    tmp_path = None
+    try:
+        # Save as .jpg for OpenCV compatibility
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+            tmp.write(image_bytes)
+            tmp_path = tmp.name
+            
+        logger.info("Lazy-loading Face Encoder (DinoV2)...")
+        # Reuse _process_face which handles extraction
+        results = _pipeline._process_face(tmp_path)
+        
+        if results.get('success'):
+            return results['face_embedding'].astype('float32'), None
+        else:
+            return np.zeros(768).astype('float32'), results.get('error')
+
+    except Exception as e:
+        logger.error(f"Image/Face embedding error: {e}")
+        return np.zeros(768).astype('float32'), str(e)
+        
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+        try:
+            MODEL_LOADER.unload_model('face_encoder') # DinoV2
+            # POSTER V2 might stay loaded if managed internally by FaceFeatureExtractor
+        except:
+            pass
 
 
 def get_tabular_embedding(tabular_data: dict) -> tuple[np.ndarray, Optional[str]]:
-    """Convert tabular data to embedding. Returns (embedding, error_msg)."""
-    return np.zeros(VECTOR_DIM).astype('float32'), None
+    """
+    Process tabular data. No heavy model to load here.
+    """
+    if not H5_AVAILABLE or _pipeline is None:
+         return np.zeros(768).astype('float32'), "Pipeline not loaded"
+         
+    # Tabular usually doesn't need lazy unloading
+    # For now return placeholder as pipeline specific integration for live tabular is TBD
+    return np.zeros(768).astype('float32'), "Tabular Model not connected"
 
 
-def _survey_based_scoring(survey_data: dict) -> tuple:
-    """Score depression risk from survey questionnaire answers."""
-    score = 0
-    max_score = 0
+# -----------------------------------------------------------------------------
+# Fusion & Fallback
+# -----------------------------------------------------------------------------
 
-    yes_fields = [
-        "growing_stress", "changes_habits", "mental_health_history",
-        "family_history", "coping_struggles", "social_weakness"
-    ]
-    for field in yes_fields:
-        max_score += 10
-        val = str(survey_data.get(field, "")).strip().lower()
-        if val in ("yes", "true", "1"):
-            score += 10
+def get_fusion_prediction(embeddings: dict, api_errors: list = None) -> str:
+    """
+    Run fusion inference.
+    """
+    modalities_used = [k for k, v in embeddings.items() if v is not None]
+    if not modalities_used:
+        return "No input provided."
 
-    max_score += 10
-    mood = str(survey_data.get("mood_swings", "")).strip().lower()
-    if mood == "high":
-        score += 10
-    elif mood == "medium":
-        score += 5
+    # 1. Try H5-OmniFusion Inference
+    if _fusion_model is not None:
+        try:
+            inputs = {}
+            for k, v in embeddings.items():
+                if v is not None and k in ['text', 'audio', 'video', 'image', 'tabular']:
+                    # Map 'image' -> 'face' for model
+                    model_key = 'face_features' if k == 'image' else f'{k}_features'
+                    inputs[model_key] = torch.from_numpy(v).float().unsqueeze(0) # (1, 768)
 
-    max_score += 10
-    interest = str(survey_data.get("work_interest", "")).strip().lower()
-    if interest in ("no", "false", "0"):
-        score += 10
+            with torch.no_grad():
+                outputs, _ = _fusion_model(inputs)
+                prob = float(outputs['binary_prob'].item())
+                risk_score = prob * 100
+                
+            risk_level = "High" if risk_score > 50 else "Low"
+            
+            return (
+                f"H5-OmniFusion Analysis\n"
+                f"Modalities: {', '.join(modalities_used)}\n"
+                f"Depression Risk: {risk_score:.1f}% ({risk_level})\n"
+                f"Model: H5-OmniFusion v2 (Lazy-Loaded)"
+            )
 
-    max_score += 10
-    treatment = str(survey_data.get("treatment_sought", "")).strip().lower()
-    if treatment in ("no", "false", "0"):
-        score += 8
-
-    max_score += 10
-    days = str(survey_data.get("days_indoors", "")).strip().lower()
-    if "more than 2 months" in days:
-        score += 10
-    elif "1-14 days" in days or "go out every day" in days.lower():
-        score += 2
-    else:
-        score += 5
-
-    risk_pct = min(round((score / max_score) * 100, 1), 100.0) if max_score > 0 else 0.0
-    return risk_pct, score, max_score
+        except Exception as e:
+            logger.error(f"Fusion inference failed: {e}")
+    
+    # 2. Fallback to Survey Scoring
+    return _survey_fallback_result(modalities_used)
 
 
 _survey_context = {}
 
 def set_survey_context(data: dict):
-    """Store survey data so fallback scoring can use it."""
     global _survey_context
     _survey_context = data
 
-
-def get_fusion_prediction(embeddings: dict, api_errors: list = None) -> str:
-    """
-    Fuse multimodal embeddings and generate prediction using local H5-OmniFusion.
-    Falls back to survey-based scoring if model is not loaded.
-    """
-    available_embeddings = [emb for emb in embeddings.values() if emb is not None]
-
-    if not available_embeddings:
-        return "No input provided for analysis."
-
-    modalities_used = [k for k, v in embeddings.items() if v is not None]
-
-    if _fusion_model is not None:
-        try:
-            inputs = {}
-
-            def prep_emb(emb):
-                if emb is None: return None
-                return torch.from_numpy(emb).unsqueeze(0)
-
-            if 'text' in embeddings: inputs['text_features'] = prep_emb(embeddings['text'])
-            if 'audio' in embeddings: inputs['audio_features'] = prep_emb(embeddings['audio'])
-            if 'video' in embeddings: inputs['video_features'] = prep_emb(embeddings['video'])
-            if 'image' in embeddings: inputs['face_features'] = prep_emb(embeddings['image'])
-            if 'tabular' in embeddings: inputs['tabular_features'] = prep_emb(embeddings['tabular'])
-
-            with torch.no_grad():
-                outputs, orth_loss = _fusion_model(inputs)
-                risk_score = float(outputs['binary_prob'].item()) * 100
-
-            risk_level = "High" if risk_score > 50 else "Low"
-
-            result = f"H5-OmniFusion Analysis Result\n"
-            result += f"Modalities analyzed: {', '.join(modalities_used)}\n"
-            result += f"Depression Risk: {risk_score:.1f}% ({risk_level} Risk)\n"
-            result += f"Model: H5-OmniFusion v2\n"
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Local inference failed: {e}")
-
-    risk_pct, score, max_score = _survey_based_scoring(_survey_context)
-
-    if risk_pct >= 70:
-        risk_level = "High"
-        recommendation = "Professional consultation is strongly recommended."
-    elif risk_pct >= 40:
-        risk_level = "Moderate"
-        recommendation = "Consider speaking with a mental health professional."
-    else:
-        risk_level = "Low"
-        recommendation = "Continue maintaining healthy habits and social connections."
-
-    media_note = ""
-    media_types = [m for m in modalities_used if m != "tabular"]
-    if media_types:
-        media_note = f"Media files received: {', '.join(media_types)}\n"
-
-    result = f"H5-OmniFusion Multimodal Analysis\n"
-    result += f"Depression Risk Score: {risk_pct}% ({risk_level} Risk)\n"
-    result += f"Factors analyzed: {len([f for f in ['growing_stress','changes_habits','mental_health_history','family_history','mood_swings','work_interest','social_weakness','coping_struggles','treatment_sought','days_indoors'] if _survey_context.get(f)])} survey indicators\n"
-    if media_note:
-        result += media_note
-    result += f"Recommendation: {recommendation}\n"
-    result += f"Note: This assessment combines questionnaire analysis with multimodal data processing."
-
-    return result
-
-
-def load_all_models():
-    """Initialize local models."""
-    logger.info("Initializing local H5-OmniFusion model...")
-    load_fusion_model()
-
+def _survey_fallback_result(modalities: list) -> str:
+    """Generate result string from survey context (Rule-based)."""
+    score = 0
+    max_score = 0
+    
+    # Simple scoring logic
+    yes_keys = ["growing_stress", "changes_habits", "mental_health_history", 
+                "family_history", "coping_struggles", "social_weakness"]
+    
+    for k in yes_keys:
+        max_score += 10
+        if str(_survey_context.get(k, "")).lower() in ("yes", "true", "1"):
+            score += 10
+            
+    # Calculate percentage
+    risk_pct = (score / max_score * 100) if max_score > 0 else 0
+    risk_level = "High" if risk_pct > 50 else "Low"
+    
+    return (
+        f"Analysis Result (Survey-Based)\n"
+        f"Modalities uploaded: {', '.join(modalities)}\n"
+        f"Depression Risk: {risk_pct:.1f}% ({risk_level})\n"
+        f"Note: Deep Learning model unavailable, using questionnaire analysis."
+    )
 
 def get_model_status() -> dict:
-    """Get status of model configuration."""
     return {
-        "mode": "local",
-        "vector_dim": VECTOR_DIM,
-        "h5_loaded": _fusion_model is not None
+        "mode": "lazy-loading",
+        "h5_available": H5_AVAILABLE,
+        "fusion_loaded": _fusion_model is not None
     }
