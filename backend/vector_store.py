@@ -2,7 +2,6 @@
 Improved Vector Store with IVF Index for scalable similarity search.
 Uses IndexIDMap for proper ID-based operations.
 """
-import faiss
 import numpy as np
 import os
 from typing import List, Optional
@@ -10,6 +9,19 @@ import logging
 import threading
 
 logger = logging.getLogger(__name__)
+
+# Graceful FAISS import
+FAISS_AVAILABLE = False
+faiss = None
+try:
+    import faiss as _faiss
+    faiss = _faiss
+    FAISS_AVAILABLE = True
+    logger.info("FAISS loaded successfully")
+except ImportError as e:
+    logger.warning(f"FAISS not available: {e}. Vector store will be disabled.")
+except Exception as e:
+    logger.warning(f"FAISS failed to load: {e}. Vector store will be disabled.")
 
 VECTOR_DIM = 768  # Dimension of the embeddings
 INDEX_FILE = "backend/database/faiss_index.bin"
@@ -26,14 +38,18 @@ class VectorStore:
     - IndexIDMap for proper ID-based retrieval
     - IVF index for O(sqrt(n)) search performance
     - Persistent storage of embeddings for reconstruction
+    - Graceful degradation when FAISS is unavailable
     """
     
     def __init__(self):
-        self.index: Optional[faiss.Index] = None
+        self.index = None
         self.id_map: List[str] = []
-        self.embeddings: List[np.ndarray] = []  # Store embeddings for retrieval
-        self._lock = threading.Lock()  # Thread safety lock
-        self._initialize_index()
+        self.embeddings: List[np.ndarray] = []
+        self._lock = threading.Lock()
+        if FAISS_AVAILABLE:
+            self._initialize_index()
+        else:
+            logger.warning("VectorStore initialized without FAISS - search disabled")
 
     def _initialize_index(self):
         """Initialize or load the FAISS index."""

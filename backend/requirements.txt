@@ -10,11 +10,16 @@ sqlalchemy==2.0.25
 
 # ML & Inference
 torch>=2.1.0
+transformers>=4.36.0
+diffusers>=0.25.0
 einops>=0.7.0
-numpy>=1.26.0
+numpy
+Pillow>=10.2.0
+opencv-python-headless>=4.9.0
 
 # Vector Store
 faiss-cpu==1.7.4
 
 # Utilities
 structlog>=24.1.0
+soundfile>=0.12.1

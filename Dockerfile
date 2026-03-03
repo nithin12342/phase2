@@ -1,34 +1,28 @@
-FROM python:3.10-slim-bullseye
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies required for Librosa (audio) and OpenCV (video)
-RUN apt-get update && apt-get install -y \
-    libsndfile1 \
+# Install minimal system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    build-essential \
+    libsndfile1 \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-# We copy requirements first to leverage Docker layer caching
-COPY backend/requirements_azure.txt .
-RUN pip install --no-cache-dir -r requirements_azure.txt
+# Copy requirements and install
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source code
-# We explicitly copy backend and ml_pipeline to match the expected structure
-COPY backend/ ./backend/
-COPY ml_pipeline/ ./ml_pipeline/
+# Copy backend code
+COPY backend/ .
 
-# Set Python path so backend can import ml_pipeline
-ENV PYTHONPATH=/app
+# Copy ml_pipeline (fusion model architecture + champion checkpoint)
+COPY ml_pipeline/ /app/ml_pipeline/
 
-# Create necessary directories for persistence
-RUN mkdir -p backend/database backend/uploads/images backend/uploads/audio backend/uploads/video backend/uploads/text backend/uploads/tabular
-RUN mkdir -p ml_pipeline/h5_omnifusion/pretrained_models
-RUN mkdir -p ml_pipeline/h5_omnifusion/checkpoints
+# Set HuggingFace cache to ephemeral storage
+ENV HF_HOME=/tmp/hf_cache
 
-# Expose the FASTAPI port
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

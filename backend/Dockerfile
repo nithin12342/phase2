@@ -1,39 +1,28 @@
+FROM python:3.11-slim
 
-# Use official Python image with stable Debian (bookworm)
-FROM python:3.9-slim-bookworm
-
-# Set working directory to /app (root of the shared context)
 WORKDIR /app
 
-# Install system dependencies (OpenCV, etc. for video processing)
+# Install minimal system dependencies for FFmpeg, libsndfile, and OpenCV
+# --no-install-recommends speeds up the process by avoiding optional packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libgl1-mesa-glx \
+    ffmpeg \
+    libsndfile1 \
+    libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy backend requirements
-COPY backend/requirements.txt ./backend/requirements.txt
+# Copy requirements (UNCHANGED — reuses cached pip install layer with torch)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install dependencies (upgrade pip first)
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r backend/requirements.txt
+# Copy backend code
+COPY . .
 
-# Copy source code
-# We copy both backend and ml_pipeline to maintain the relative structure
-COPY backend/ ./backend/
-COPY ml_pipeline/ ./ml_pipeline/
+# Set HuggingFace cache dir
+ENV HF_HOME=/tmp/hf_cache
 
-# Set PYTHONPATH so imports work
-# 1. /app/backend -> allows "import database" (if run from there)
-# 2. /app -> allows "from backend import..." or "from ml_pipeline import..."
-ENV PYTHONPATH=/app/backend:/app
-
-# Expose port
+# Expose port 8000
 EXPOSE 8000
 
-# Run from /app so paths like "backend/uploads" resolve correctly manually or 
-# if code uses relative paths from CWD. 
-# However, application code seems to use "backend/uploads" relative to execution root.
-# We will execute uvicorn on the module "backend.main"
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use uvicorn to run the application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

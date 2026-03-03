@@ -31,7 +31,7 @@ class LatentFusionBlock(nn.Module):
         self.cross_norm = nn.LayerNorm(d_model)
         
         if use_mamba:
-            self.latent_mix = MambaBlock(d_model, dropout=dropout)
+            self.latent_mix = MambaBlock(d_model, expand=1, dropout=dropout)
         else:
             self.latent_mix = nn.MultiheadAttention(
                 embed_dim=d_model,

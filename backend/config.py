@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     rate_limit_requests: int = 100  # requests per window
     rate_limit_window_seconds: int = 60  # window in seconds
     
-    request_timeout_seconds: int = 60
+    request_timeout_seconds: int = 300
     
     cors_origins: str = "http://localhost,http://localhost:3000"
     
@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     use_inference_api: bool = False
     custom_model_repo: Optional[str] = "nithin12342/h5-omnifusion-v3"
     custom_model_filename: str = "h5_omnifusion.pt"
+    huggingface_token: Optional[str] = None
 
     class Config:
         env_file = ".env"

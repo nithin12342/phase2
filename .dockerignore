@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+__pycache__
+
+# Virtual environments
+venv
+.venv
+node_modules
+
+# Frontend (not needed for backend image)
+frontend/
+
+# Notebooks and training data
+ml_pipeline/h5_omnifusion/notebooks/
+ml_pipeline/h5_omnifusion/pretrained_models/
+ml_pipeline/h5_omnifusion/__pycache__/
+
+# Misc
+*.md
+*.ipynb
+.env.local

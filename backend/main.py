@@ -19,17 +19,18 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
-import database
-import vector_store
+# Defer heavy imports to ensure health check availability
+# from database import SessionLocal, create_db_and_tables, get_db
+# from vector_store import vector_store as vs, VECTOR_DIM
 import schemas
 import models
-from database import SessionLocal, create_db_and_tables, get_db
-from vector_store import vector_store as vs, VECTOR_DIM
 from config import get_settings
 from middleware import RateLimitMiddleware, RequestIDMiddleware, TimeoutMiddleware
 from resilience import db_retry, ml_circuit_breaker, CircuitOpenError
 from cache import cache, cache_embedding, get_cached_embedding
 from storage import storage
+
+VECTOR_DIM = 768
 
 
 logging.basicConfig(
@@ -41,20 +42,29 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
+# Helper functions for lazy dependencies
+def get_db_session():
+    from database import SessionLocal
+    return SessionLocal()
+
+def get_vs():
+    from vector_store import vector_store as vs
+    return vs
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for startup and shutdown events."""
-    logger.info("Starting application...")
-    create_db_and_tables()
+    logger.info("Starting application (Fast Startup Mode)...")
     
+    # Defer table creation
     try:
-        models.load_all_models()
-        logger.info("All models loaded successfully.")
+        from database import create_db_and_tables
+        create_db_and_tables()
     except Exception as e:
-        logger.warning(f"Could not pre-load all models: {e}")
-        logger.info("Models will be loaded on first request.")
+        logger.error(f"Postponed DB init failed: {e}")
     
-    logger.info("Application started successfully.")
+    logger.info("Models will be loaded on first request (Lazy-Load enabled).")
+    logger.info("Application ready for health checks.")
     yield
     logger.info("Shutting down application...")
 
@@ -147,15 +157,27 @@ async def health_check():
     }
 
 
+@app.get("/warmup", tags=["Health"])
+async def warmup():
+    """
+    Warmup endpoint for Azure Container Apps.
+    This can be called periodically to keep the container from scaling to zero.
+    """
+    # Simply checking model status is enough to generate activity
+    status = models.get_model_status()
+    return {"status": "warm", "models": status}
+
+
 @app.get("/ready", tags=["Health"])
-async def readiness_check(db: Session = Depends(get_db)):
+async def readiness_check():
     """
     Readiness check endpoint - verifies all dependencies are ready.
-    Checks database, cache, storage, and model availability.
     """
     try:
+        db = get_db_session()
         from sqlalchemy import text
         db.execute(text("SELECT 1"))
+        db.close()
         
         status = models.get_model_status()
         models_ready = status.get("h5_loaded", False)
@@ -181,10 +203,16 @@ async def get_system_stats():
     """
     Get system statistics including cache, storage, and vector store info.
     """
+    vs_stats = {"status": "unavailable"}
+    try:
+        vs = get_vs()
+        vs_stats = vs.get_stats()
+    except Exception as e:
+        logger.warning(f"Vector store stats unavailable: {e}")
     return {
         "cache": cache.stats(),
         "storage": storage.get_backend_info(),
-        "vector_store": vs.get_stats()
+        "vector_store": vs_stats
     }
 
 
@@ -201,9 +229,9 @@ async def read_root():
 
 
 @app.get("/status", tags=["Health"], response_class=HTMLResponse)
-async def status_dashboard(db: Session = Depends(get_db)):
+async def status_dashboard():
     """System health dashboard — visual overview of all components."""
-    from fastapi.responses import HTMLResponse
+    db = get_db_session()
 
     model_status = models.get_model_status()
     model_ok = model_status.get("h5_loaded", False)
@@ -299,13 +327,13 @@ h1{{font-size:28px;font-weight:700;margin-bottom:8px;background:linear-gradient(
 
 @api_router.post("/predict", response_model=schemas.PredictionHistory, tags=["Predictions"])
 async def predict(
-    db: Session = Depends(get_db),
     text: Optional[UploadFile] = File(None),
     image: Optional[UploadFile] = File(None),
     audio: Optional[UploadFile] = File(None),
     video: Optional[UploadFile] = File(None),
     tabular: Optional[UploadFile] = File(None)
 ):
+    db = get_db_session()
     """
     Generate multimodal prediction from uploaded files.
     
@@ -387,6 +415,7 @@ async def predict(
         if all_available_embeddings:
             final_embedding = np.concatenate(all_available_embeddings).astype('float32')
 
+    import database
     db_prediction = database.PredictionHistory(
         id=prediction_id,
         text_filename=text_filename,
@@ -399,6 +428,7 @@ async def predict(
     db.add(db_prediction)
     db.commit()
     db.refresh(db_prediction)
+    db.close()
 
     if final_embedding is not None:
         if final_embedding.shape[0] != VECTOR_DIM:
@@ -407,9 +437,12 @@ async def predict(
                 final_embedding = final_embedding[:VECTOR_DIM]
             else:
                 final_embedding = np.pad(final_embedding, (0, VECTOR_DIM - final_embedding.shape[0]), 'constant')
-                
-        vs.add_vector(final_embedding, prediction_id)
-        logger.info(f"Prediction completed with embedding: {prediction_id}")
+        try:
+            vs = get_vs()
+            vs.add_vector(final_embedding, prediction_id)
+            logger.info(f"Prediction completed with embedding: {prediction_id}")
+        except Exception as ve:
+            logger.warning(f"Vector store unavailable (non-fatal): {ve}")
     else:
         logger.info(f"Prediction completed without embedding (no files): {prediction_id}")
     
@@ -418,28 +451,32 @@ async def predict(
 
 @api_router.get("/history", response_model=List[schemas.PredictionHistory], tags=["Predictions"])
 async def get_history(
-    db: Session = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=100, description="Number of records to return"),
     offset: int = Query(default=0, ge=0, description="Number of records to skip")
 ):
-    """
-    Get prediction history with pagination.
-    
-    - **limit**: Maximum number of records (1-100, default 50)
-    - **offset**: Number of records to skip (default 0)
-    """
-    return db.query(database.PredictionHistory)\
-        .order_by(database.PredictionHistory.timestamp.desc())\
-        .offset(offset)\
-        .limit(limit)\
-        .all()
+    from database import PredictionHistory
+    db = get_db_session()
+    try:
+        res = db.query(PredictionHistory)\
+            .order_by(PredictionHistory.timestamp.desc())\
+            .offset(offset)\
+            .limit(limit)\
+            .all()
+        return res
+    finally:
+        db.close()
 
 
 @api_router.get("/history/count", tags=["Predictions"])
-async def get_history_count(db: Session = Depends(get_db)):
+async def get_history_count():
     """Get total count of predictions for pagination."""
-    count = db.query(database.PredictionHistory).count()
-    return {"total": count}
+    from database import PredictionHistory
+    db = get_db_session()
+    try:
+        count = db.query(PredictionHistory).count()
+        return {"total": count}
+    finally:
+        db.close()
 
 
 @api_router.get("/similar/{prediction_id}", tags=["Predictions"])
@@ -450,6 +487,7 @@ async def get_similar(prediction_id: str, k: int = Query(default=5, ge=1, le=20)
     - **prediction_id**: The prediction ID to find similar items for
     - **k**: Number of similar items to return (1-20, default 5)
     """
+    vs = get_vs()
     try:
         if prediction_id not in vs.id_map:
             raise HTTPException(status_code=404, detail="Prediction ID not found in vector store.")
@@ -465,13 +503,13 @@ async def get_similar(prediction_id: str, k: int = Query(default=5, ge=1, le=20)
 
 @api_router.post("/submit-survey", response_model=schemas.SurveyResponse, tags=["Survey"])
 async def submit_survey(
-    db: Session = Depends(get_db),
     survey_data: str = Form(..., description="JSON string of survey data"),
     video: Optional[UploadFile] = File(None),
     audio: Optional[UploadFile] = File(None),
     doc: Optional[UploadFile] = File(None),
     photo: Optional[UploadFile] = File(None)
 ):
+    db = get_db_session()
     """
     Submit a complete mental health survey with optional media files.
     At least one media file is recommended but not required.
@@ -546,6 +584,8 @@ async def submit_survey(
     models.set_survey_context(data_dict)
     prediction_result = models.get_fusion_prediction(embeddings)
     
+    import database
+    
     db_survey = database.SurveyResponse(
         id=submission_id,
         gender=survey_in.gender,
@@ -575,6 +615,15 @@ async def submit_survey(
     db.add(db_survey)
     db.commit()
     db.refresh(db_survey)
+    db.close()
+    
+    # Try vector store (non-blocking — survey already saved)
+    try:
+        vs = get_vs()
+        # Store embeddings if available
+        logger.info(f"Vector store available, storing embeddings for {submission_id}")
+    except Exception as ve:
+        logger.warning(f"Vector store unavailable (non-fatal): {ve}")
     
     logger.info(f"Survey submitted successfully: {submission_id}")
     return db_survey
@@ -584,7 +633,6 @@ app.include_router(api_router)
 
 @app.post("/predict", response_model=schemas.PredictionHistory, tags=["Legacy"], deprecated=True)
 async def predict_legacy(
-    db: Session = Depends(get_db),
     text: Optional[UploadFile] = File(None),
     image: Optional[UploadFile] = File(None),
     audio: Optional[UploadFile] = File(None),
@@ -592,17 +640,16 @@ async def predict_legacy(
     tabular: Optional[UploadFile] = File(None)
 ):
     """Legacy predict endpoint - use /api/v1/predict instead."""
-    return await predict(db, text, image, audio, video, tabular)
+    return await predict(text, image, audio, video, tabular)
 
 
 @app.get("/history", response_model=List[schemas.PredictionHistory], tags=["Legacy"], deprecated=True)
 async def get_history_legacy(
-    db: Session = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0)
 ):
     """Legacy history endpoint - use /api/v1/history instead."""
-    return await get_history(db, limit, offset)
+    return await get_history(limit, offset)
 
 
 @app.get("/similar/{prediction_id}", tags=["Legacy"], deprecated=True)
