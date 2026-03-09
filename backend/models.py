@@ -18,9 +18,13 @@ from typing import Optional, Dict
 logger = logging.getLogger(__name__)
 
 # ── paths ────────────────────────────────────────────────────────────────
-# models.py is at /app/models.py in Docker → dirname = /app
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ML_PIPELINE_DIR = os.path.join(BASE_DIR, "ml_pipeline")
+# models.py is at backend/models.py → go up one level to project root
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))                   # .../backend
+PROJECT_ROOT = os.path.dirname(BASE_DIR)                                # .../phase 2
+ML_PIPELINE_DIR = os.path.join(PROJECT_ROOT, "ml_pipeline")
+# Docker compat: if ml_pipeline is co-located (e.g. /app/ml_pipeline), use that
+if not os.path.exists(ML_PIPELINE_DIR):
+    ML_PIPELINE_DIR = os.path.join(BASE_DIR, "ml_pipeline")
 if ML_PIPELINE_DIR not in sys.path:
     sys.path.append(ML_PIPELINE_DIR)
 
@@ -95,9 +99,11 @@ def _load_fusion_model():
     if not _import_fusion():
         return None
 
+    from collections import OrderedDict
+
     # Locate checkpoint
-    ckpt_path = os.path.join(ML_PIPELINE_DIR, "h5_omnifusion", "checkpoints",
-                             "fold4_phase12_latest.pt")
+    H5_ROOT = os.path.join(ML_PIPELINE_DIR, "h5_omnifusion")
+    ckpt_path = os.path.join(H5_ROOT, "checkpoints", "fold4_phase12_latest.pt")
     if settings.custom_model_filename and os.path.exists(settings.custom_model_filename):
         ckpt_path = settings.custom_model_filename
 
@@ -107,42 +113,70 @@ def _load_fusion_model():
         return None
 
     try:
-        logger.info(f"Loading H5-OmniFusion checkpoint: {ckpt_path}")
-        # import architecture
-        # Import actual Config class
-        from h5_omnifusion.src.config import Config
-        from h5_omnifusion.src.models.h5_omnifusion import H5OmniFusion
+        # Use importlib to load H5Config directly from file path.
+        # This bypasses the conflict where Python caches backend/config.py
+        # as the "config" module, preventing config.model_config from resolving.
+        import importlib.util
+
+        model_config_path = os.path.join(H5_ROOT, "config", "model_config.py")
+        spec = importlib.util.spec_from_file_location("h5_model_config", model_config_path)
+        h5_cfg_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(h5_cfg_mod)
+        H5Config = h5_cfg_mod.H5Config
+        ComputeTier = h5_cfg_mod.ComputeTier
+
+        # Import the model architecture (src.models needs h5_omnifusion on path)
+        if H5_ROOT not in sys.path:
+            sys.path.insert(0, H5_ROOT)
+        from src.models.h5_omnifusion import H5OmniFusion
 
         checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        sd = checkpoint.get("model_state_dict", checkpoint)
+        sd = OrderedDict((k[7:] if k.startswith("module.") else k, v)
+                         for k, v in sd.items())
 
-        # Manually construct config to match "lite" tier
-        config = Config()
-        config.d_model = 256
-        config.moe.expert_hidden_dim = 128
-        config.moe.n_quality_features = 5
-        config.fusion.n_latents = 16
-        config.fusion.n_perceiver_blocks = 1
-        config.fusion.local_n_heads = 4
-        config.fusion.modality_n_heads = 4
-        config.fusion.modality_n_layers = 1
-        config.fusion.perceiver_n_heads = 4
-        config.audio.n_mamba_layers = 1
-        config.text.n_mamba_layers = 1
-        config.video.n_mamba_layers = 1
-        config.face.n_lstm_layers = 1
-        config.text.use_kan = False
-        config.tabular.use_kan = False
-        config.video.use_timesformer = False
+        # ── Auto-detect config from checkpoint (mirrors notebook) ────────
+        d_model = 256
+        if "latent_fusion.latent_init" in sd:
+            d_model = sd["latent_fusion.latent_init"].shape[1]
+
+        n_latents = 16
+        if "latent_fusion.latent_init" in sd:
+            n_latents = sd["latent_fusion.latent_init"].shape[0]
+
+        expert_hidden = 128
+        if "moe.audio_expert.network.0.weight" in sd:
+            expert_hidden = sd["moe.audio_expert.network.0.weight"].shape[0]
+
+        bidirectional = True
+        if "face_encoder.seq_proj.weight" in sd:
+            bidirectional = (sd["face_encoder.seq_proj.weight"].shape[1] == d_model)
+
+        au_dim = 35
+        if "face_encoder.au_proj.weight" in sd:
+            au_dim = sd["face_encoder.au_proj.weight"].shape[1]
+
+        tier = ComputeTier.MEDIUM if d_model > 64 else ComputeTier.MICRO
+        config = H5Config.from_tier(tier)
+        config.d_model = d_model
+        config.fusion.n_latents = n_latents
+        config.moe.expert_hidden_dim = expert_hidden
+        config.face.bidirectional = bidirectional
+        config.face.au_dim = au_dim
+        if "moe.gate.gate_network.0.weight" in sd:
+            config.moe.gate_hidden_dim = sd["moe.gate.gate_network.0.weight"].shape[0]
 
         model = H5OmniFusion(config)
-        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        msg = model.load_state_dict(sd, strict=False)
+        logger.info(f"Weights loaded — missing: {len(msg.missing_keys)}, unexpected: {len(msg.unexpected_keys)}")
         model.eval()
         _fusion_model = model
         logger.info("✅ H5-OmniFusion fusion model loaded successfully")
         return model
     except Exception as e:
+        import traceback
         _fusion_error = str(e)
-        logger.error(f"Fusion model load failed: {e}")
+        logger.error(f"Fusion model load failed: {e}\n{traceback.format_exc()}")
         return None
 
 
@@ -187,13 +221,38 @@ def get_fusion_prediction(embeddings: dict) -> str:
         with torch.no_grad():
             outputs, _ = model(inputs)
             prob = float(outputs["binary_prob"].item())
-            risk = prob * 100
+            phq = float(outputs["phq_score"].item())
 
-        level = "High" if risk > 50 else "Low"
-        return (f"H5-OmniFusion Analysis\n"
-                f"Modalities: {', '.join(modalities)}\n"
-                f"Depression Risk: {risk:.1f}% ({level})\n"
-                f"Model: H5-OmniFusion v2 (Champion Fold-4)")
+        status = "Depression" if prob >= 0.50 else "Not Depressed"
+
+        # Build per-modality model list
+        hf_models = {
+            "text": "mental/mental-roberta-base",
+            "audio": "facebook/wav2vec2-large-xlsr-53",
+            "image": "facebook/dinov2-base",
+            "video": "MCG-NJU/videomae-base",
+            "tabular": "Local (zero-vector)"
+        }
+        models_used = "\n".join(f"  • {m}: {hf_models.get(m, 'N/A')}" for m in modalities)
+
+        # Build preprocessing steps applied
+        preproc_steps = {
+            "audio": "P4 Peak Norm, P6 Noise Gate",
+            "text": "P12-P14 Clean/Normalize",
+            "image": "P23-P24 Resize+Normalize",
+            "video": "P21-P22 Frame Extract+Quality Filter",
+            "tabular": "Survey encoding"
+        }
+        preproc_applied = "\n".join(f"  • {m}: {preproc_steps.get(m, 'None')}" for m in modalities)
+
+        return (
+            f"--- Prediction Results ---\n"
+            f"Prediction: {status}\n\n"
+            f"Preprocessing Applied:\n{preproc_applied}\n\n"
+            f"Feature Extraction (HuggingFace Inference API):\n{models_used}\n\n"
+            f"Classification: H5-OmniFusion (Local Checkpoint)\n"
+            f"Modalities Used: {', '.join(modalities)}"
+        )
     except Exception as e:
         logger.error(f"Fusion inference failed: {e}")
         return _survey_fallback(modalities)
