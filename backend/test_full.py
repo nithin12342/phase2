@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import sys
@@ -6,7 +7,8 @@ url = 'http://localhost:8000/api/v1/submit-survey'
 TIMEOUT = 300  # 5 minutes for HF cold starts
 
 def test_sample(pid, dir_name, is_depressed):
-    sample_dir = fr'C:\Users\thela\OneDrive\Desktop\phase 2\demo_samples\{dir_name}'
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sample_dir = os.path.join(base_dir, 'demo_samples', dir_name)
     label = "Depressed" if is_depressed else "Not Depressed"
     
     survey_data = {
@@ -25,10 +27,10 @@ def test_sample(pid, dir_name, is_depressed):
     }
 
     files = {
-        'audio': ('audio.wav', open(sample_dir + r'\audio.wav', 'rb'), 'audio/wav'),
-        'video': ('video.mp4', open(sample_dir + r'\video_clip.mp4', 'rb'), 'video/mp4'),
-        'photo': ('photo.jpg', open(sample_dir + r'\face_frame.jpg', 'rb'), 'image/jpeg'),
-        'doc': ('doc.txt', open(sample_dir + r'\transcript.txt', 'rb'), 'text/plain')
+        'audio': ('audio.wav', open(os.path.join(sample_dir, 'audio.wav'), 'rb'), 'audio/wav'),
+        'video': ('video.mp4', open(os.path.join(sample_dir, 'video_clip.mp4'), 'rb'), 'video/mp4'),
+        'photo': ('photo.jpg', open(os.path.join(sample_dir, 'face_frame.jpg'), 'rb'), 'image/jpeg'),
+        'doc': ('doc.txt', open(os.path.join(sample_dir, 'transcript.txt'), 'rb'), 'text/plain')
     }
     
     print(f"Testing PID {pid} ({label})...", flush=True)
