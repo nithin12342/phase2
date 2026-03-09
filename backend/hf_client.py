@@ -67,20 +67,43 @@ class HFClient:
     # ------------------------------------------------------------------
     # Lazy Model Loaders
     # ------------------------------------------------------------------
+    def _get_model_path(self, modality_key: str, hf_id: str) -> str:
+        """Return the local Google Drive path if it exists, otherwise the HF ID."""
+        import os
+        base_dir = "/content/drive/MyDrive/DAIC-WOZ_Datasets/pretrained_models"
+        
+        # Mappings based on the UI screenshot (e.g., text/mental-roberta-base)
+        local_subpaths = {
+            "text": "text/mental-roberta-base",
+            "audio": "audio/wav2vec2-large-xlsr-53",
+            "image": "face/dinov2-base",
+            "video": "video/videomae-base"
+        }
+        
+        if modality_key in local_subpaths:
+            local_path = os.path.join(base_dir, local_subpaths[modality_key])
+            if os.path.exists(local_path):
+                logger.info(f"Found local model for {modality_key} at {local_path}")
+                return local_path
+                
+        return hf_id
+
     def _load_text_model(self):
         if self._text_model is None:
-            logger.info(f"Loading local model: {MODELS['text']} to {self.device}...")
+            model_path = self._get_model_path('text', MODELS['text'])
+            logger.info(f"Loading text model: {model_path} to {self.device}...")
             from transformers import AutoTokenizer, AutoModel
-            self._text_tokenizer = AutoTokenizer.from_pretrained(MODELS["text"], token=self.token)
-            self._text_model = AutoModel.from_pretrained(MODELS["text"], token=self.token).to(self.device)
+            self._text_tokenizer = AutoTokenizer.from_pretrained(model_path, token=self.token)
+            self._text_model = AutoModel.from_pretrained(model_path, token=self.token).to(self.device)
             self._text_model.eval()
             
     def _load_audio_model(self):
         if self._audio_model is None:
-            logger.info(f"Loading local model: {MODELS['audio']} to {self.device}...")
+            model_path = self._get_model_path('audio', MODELS['audio'])
+            logger.info(f"Loading audio model: {model_path} to {self.device}...")
             from transformers import Wav2Vec2Processor, Wav2Vec2Model
-            self._audio_processor = Wav2Vec2Processor.from_pretrained(MODELS["audio"], token=self.token)
-            self._audio_model = Wav2Vec2Model.from_pretrained(MODELS["audio"], token=self.token).to(self.device)
+            self._audio_processor = Wav2Vec2Processor.from_pretrained(model_path, token=self.token)
+            self._audio_model = Wav2Vec2Model.from_pretrained(model_path, token=self.token).to(self.device)
             self._audio_model.eval()
 
     # ------------------------------------------------------------------
