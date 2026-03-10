@@ -1,0 +1,81 @@
+python : 2026-03-10 
+21:07:41,312 - models - 
+INFO - Weights loaded ù 
+missing: 0, unexpected: 0
+At line:1 char:1
++ python test_qinputs.py > 
+res_qinputs.txt 2>&1 ; 
+python -c "content =  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2026-  
+  03-10 21:0..., unexpect   
+ ed: 0:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+2026-03-10 21:07:41,314 - 
+models - INFO - \u2705 
+H5-OmniFusion fusion model 
+loaded successfully
+2026-03-10 21:07:41,317 - 
+inference_preprocessing - 
+INFO - P12-P14 Text 
+cleaning applied (74 \u2192 
+74 chars)
+2026-03-10 21:07:41,317 - 
+hf_client - INFO - Local 
+inference \u2192 text 
+embedding 
+(mental/mental-roberta-base)
+2026-03-10 21:07:41,318 - 
+hf_client - INFO - Loading 
+text model: 
+mental/mental-roberta-base 
+to cpu...
+2026-03-10 21:07:48.197287: 
+I tensorflow/core/util/port.
+cc:153] oneDNN custom 
+operations are on. You may 
+see slightly different 
+numerical results due to 
+floating-point round-off 
+errors from different 
+computation orders. To turn 
+them off, set the 
+environment variable 
+`TF_ENABLE_ONEDNN_OPTS=0`.
+Some weights of 
+RobertaModel were not 
+initialized from the model 
+checkpoint at 
+mental/mental-roberta-base 
+and are newly initialized: 
+['pooler.dense.bias', 
+'pooler.dense.weight']
+You should probably TRAIN 
+this model on a down-stream 
+task to be able to use it 
+for predictions and 
+inference.
+2026-03-10 21:07:54,464 - 
+inference_preprocessing - 
+INFO - P12-P14 Text 
+cleaning applied (75 \u2192 
+75 chars)
+2026-03-10 21:07:54,464 - 
+hf_client - INFO - Local 
+inference \u2192 text 
+embedding 
+(mental/mental-roberta-base)
+HAPPY PROB: 0.8865702748298645
+HAPPY GATE WEIGHTS: [0.06355905532836914, 0.05743813142180443, 0.04100444167852402, 0.07857908308506012, 0.05452798679471016, 0.7048912644386292]
+HAPPY EXPERT LOGITS: [0.7417442202568054, 0.9065710306167603, 0.7187771797180176, 1.1972272396087646, 0.7284866571426392, 2.5446300506591797]
+SAD PROB: 0.8862779140472412
+SAD GATE WEIGHTS: [0.06375310570001602, 0.05728587880730629, 0.04118616506457329, 0.07871503382921219, 0.05479821935296059, 0.7042615413665771]
+SAD EXPERT LOGITS: [0.7414181232452393, 0.903899073600769, 0.7166852355003357, 1.1965223550796509, 0.7288756966590881, 2.542495012283325]
+
+HAPPY PROB (NO Q-INPUTS): 0.8864248394966125
+SAD PROB (NO Q-INPUTS): 0.8861376643180847

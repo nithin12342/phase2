@@ -1,0 +1,26 @@
+python : Traceback (most 
+recent call last):
+At line:1 char:1
++ python test_dist.py > 
+res_dist.txt 2>&1 ; python 
+-c "content = open(' ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (Trace  
+  back (most recent call    
+ last)::String) [], Remo    
+teException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+  File "C:\Users\thela\OneDr
+ive\Desktop\phase 
+2\backend\test_dist.py", 
+line 15, in <module>
+    inputs = 
+c._text_tokenizer(
+             
+^^^^^^^^^^^^^^^^^^
+TypeError: 'NoneType' 
+object is not callable

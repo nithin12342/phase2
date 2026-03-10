@@ -1,0 +1,37 @@
+2026-03-10 19:16:41.485776: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+401 Client Error. (Request ID: Root=1-69b020c7-61b9ed5d5b2e6fb514fe5911;78c89120-8d00-4045-abc4-0e4207261118)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+401 Client Error. (Request ID: Root=1-69b020c9-72b73070330e02da6d672e53;a9c1c385-e7e4-44b0-9b97-ed80f267a393)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+401 Client Error. (Request ID: Root=1-69b020cb-38470eac232fd46166541a3d;328b8bb8-04f4-4b2e-99ee-54281b24cd6d)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+401 Client Error. (Request ID: Root=1-69b020cd-603a432372f37a8f610eed9b;e721f8e0-c6d0-4549-9620-a7a9ee7c92b4)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+401 Client Error. (Request ID: Root=1-69b020cf-48d8be2e384f2a1811b7dc61;836a48f1-4772-454d-b0dc-a531223a0596)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+401 Client Error. (Request ID: Root=1-69b020d1-10fe698b5eefff8f0ff88afe;f6dbdfcf-0979-47f5-b22d-9f7c3d78d8b4)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+sample_1_Depression_PID346         : 0.693496
+sample_2_Depression_PID308         : 0.693496
+sample_3_Depression_PID311         : 0.693496
+sample_4_Not_Depressed_PID303      : 0.693496
+sample_5_Not_Depressed_PID306      : 0.693496
+sample_6_Not_Depressed_PID361      : 0.693496

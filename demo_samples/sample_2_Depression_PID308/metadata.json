@@ -1,0 +1,35 @@
+{
+  "participant_id": "308",
+  "dataset": "DAIC-WOZ",
+  "label": "Depression",
+  "phq8_score": 22.0,
+  "gender": "unknown",
+  "survey_values": {
+    "participant_id": "308",
+    "phq8_total": 22.0,
+    "depression_label": "Depression",
+    "gender": "unknown",
+    "growing_stress": "Yes",
+    "changes_in_habits": "Yes",
+    "mental_health_history": "Yes",
+    "family_history": "Yes",
+    "coping_struggles": "Yes",
+    "social_weakness": "Yes",
+    "work_interest": "No"
+  },
+  "files": {
+    "audio": "audio.wav",
+    "text": "transcript.txt",
+    "image": "face_frame.jpg",
+    "video": "video_clip.mp4",
+    "tabular": "survey_data.csv"
+  },
+  "upload_instructions": {
+    "audio.wav": "Upload to Audio field",
+    "transcript.txt": "Upload to Text field",
+    "face_frame.jpg": "Upload to Photo field",
+    "video_clip.mp4": "Upload to Video field",
+    "survey": "Fill in survey dropdowns using survey_values above"
+  },
+  "expected_result": "Depression"
+}

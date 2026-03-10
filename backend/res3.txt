@@ -1,0 +1,9 @@
+2026-03-10 19:37:55.530820: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+Some weights of RobertaModel were not initialized from the model checkpoint at mental/mental-roberta-base and are newly initialized: ['pooler.dense.bias', 'pooler.dense.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+sample_1_Depression_PID346         : 0.887770
+sample_2_Depression_PID308         : 0.887701
+sample_3_Depression_PID311         : 0.887549
+sample_4_Not_Depressed_PID303      : 0.887563
+sample_5_Not_Depressed_PID306      : 0.887642
+sample_6_Not_Depressed_PID361      : 0.887723

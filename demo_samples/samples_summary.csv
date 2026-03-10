@@ -1,0 +1,7 @@
+Sample,Folder,PID,Label,PHQ8,Gender
+1,sample_1_Depression_PID346,346,Depression,23.0,unknown
+2,sample_2_Depression_PID308,308,Depression,22.0,unknown
+3,sample_3_Depression_PID311,311,Depression,21.0,unknown
+4,sample_4_Not_Depressed_PID303,303,Not Depressed,0.0,unknown
+5,sample_5_Not_Depressed_PID306,306,Not Depressed,0.0,unknown
+6,sample_6_Not_Depressed_PID361,361,Not Depressed,0.0,unknown

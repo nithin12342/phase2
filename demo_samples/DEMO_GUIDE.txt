@@ -1,0 +1,31 @@
+
+╔══════════════════════════════════════════════════════════════╗
+║           H5-OMNIFUSION DEMO GUIDE — FINAL REVIEW           ║
+╚══════════════════════════════════════════════════════════════╝
+
+HOW TO USE THESE SAMPLES:
+─────────────────────────
+1. Start the app: http://localhost:3000 (or deployed URL)
+2. For each sample folder, upload:
+   • audio.wav       → Audio field
+   • face_frame.jpg  → Photo field
+   • video_clip.mp4  → Video field
+   • transcript.txt  → Text field
+3. Fill survey dropdowns from metadata.json → survey_values
+4. Submit and verify prediction matches the expected label
+
+RECOMMENDED DEMO ORDER:
+───────────────────────
+1. Start with a "Not Depressed" sample → show correct classification
+2. Then a "Depression" sample → show correct classification
+3. Then show the preprocessing steps in the output
+
+WHAT THE OUTPUT SHOWS:
+──────────────────────
+• Preprocessing: P4 Peak Norm, P6 Noise Gate, P12-P14, P21-P24
+• Feature Extraction: HuggingFace models per modality
+• Classification: H5-OmniFusion local checkpoint
+• Final prediction: Depression / Not Depressed
+
+NOTE: These are REAL samples from the DAIC-WOZ clinical interview
+dataset with known PHQ-8 depression scores. The labels are ground truth.

@@ -1,0 +1,44 @@
+python : 2026-03-10 
+20:29:40.644332: I tensorflo
+w/core/util/port.cc:153] 
+oneDNN custom operations 
+are on. You may see 
+slightly different 
+numerical results due to 
+floating-point round-off 
+errors from different 
+computation orders. To turn 
+them off, set the 
+environment variable 
+`TF_ENABLE_ONEDNN_OPTS=0`.
+At line:1 char:1
++ python test_qinputs.py > 
+res_q.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2026-  
+  03-10 20:2...ONEDNN_OPT   
+ S=0`.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+Some weights of 
+RobertaModel were not 
+initialized from the model 
+checkpoint at 
+mental/mental-roberta-base 
+and are newly initialized: 
+['pooler.dense.bias', 
+'pooler.dense.weight']
+You should probably TRAIN 
+this model on a down-stream 
+task to be able to use it 
+for predictions and 
+inference.
+HAPPY PROB: 0.8871392011642456
+SAD PROB: 0.8870633840560913
+
+HAPPY PROB (NO Q-INPUTS): 0.8869830965995789
+SAD PROB (NO Q-INPUTS): 0.8869065642356873

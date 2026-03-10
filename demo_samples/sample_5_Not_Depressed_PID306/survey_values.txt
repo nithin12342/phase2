@@ -1,0 +1,15 @@
+Survey Values for PID 306
+========================================
+Expected Result: Not Depressed
+PHQ8 Score: 0.0
+
+FILL THESE IN THE WEB APP:
+----------------------------------------
+  gender: unknown
+  growing_stress: No
+  changes_in_habits: No
+  mental_health_history: No
+  family_history: No
+  coping_struggles: No
+  social_weakness: No
+  work_interest: Yes

@@ -1,0 +1,82 @@
+Audio preprocessing failed (passing raw): No module named 'soundfile'
+Local audio embedding failed: No module named 'librosa'
+'(ReadTimeoutError("HTTPSConnectionPool(host='huggingface.co', port=443): Read timed out. (read timeout=10)"), '(Request ID: 709da522-f5d4-4e32-af48-bef0707f6d4c)')' thrown while requesting HEAD https://huggingface.co/mental/mental-roberta-base/resolve/main/tokenizer_config.json
+Retrying in 1s [Retry 1/5].
+2026-03-10 16:26:58.847533: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+401 Client Error. (Request ID: Root=1-69aff904-1ea64e04195df3995c223616;0c5bf7f8-f418-4e92-b055-949be47a4313)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+Audio preprocessing failed (passing raw): No module named 'soundfile'
+Local audio embedding failed: No module named 'librosa'
+401 Client Error. (Request ID: Root=1-69aff905-208eff7618eeb5b24d89a1de;402abb19-b325-448b-bc72-f1a930666455)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+Audio preprocessing failed (passing raw): No module named 'soundfile'
+Local audio embedding failed: No module named 'librosa'
+401 Client Error. (Request ID: Root=1-69aff907-0462a6a2668a37ba245f7d85;aabb68d4-32a6-4f8d-84b5-df191c6088dc)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+Audio preprocessing failed (passing raw): No module named 'soundfile'
+Local audio embedding failed: No module named 'librosa'
+401 Client Error. (Request ID: Root=1-69aff909-0ea831840758de37779291bc;ce35540e-8527-4375-a024-69b2c6ab82a8)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+Audio preprocessing failed (passing raw): No module named 'soundfile'
+Local audio embedding failed: No module named 'librosa'
+401 Client Error. (Request ID: Root=1-69aff90a-162ea80a7b8c555238a0fc6b;d98c8d85-5d67-431f-bbaa-83601cfd97fe)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+Audio preprocessing failed (passing raw): No module named 'soundfile'
+Local audio embedding failed: No module named 'librosa'
+401 Client Error. (Request ID: Root=1-69aff90c-256c84463af6a0043db8b101;d42ec298-4db3-42fa-aa69-e881e18ee868)
+
+Cannot access gated repo for url https://huggingface.co/mental/mental-roberta-base/resolve/main/model.safetensors.
+Access to model mental/mental-roberta-base is restricted. You must have access to it and be authenticated to access it. Please log in.
+Local text embedding failed: mental/mental-roberta-base is a gated repository. Make sure to request access at https://huggingface.co/mental/mental-roberta-base and pass a token having permission to this repo either by logging in with `hf auth login` or by passing `token=<your_token>`.
+Starting evaluation of all 6 samples...
+
+--- Testing: sample_1_Depression_PID346 ---
+  True Label: Depressed
+  Prediction: Not Depressed (Prob: 0.6935)  -> WRONG
+  PHQ Score:  12.70
+
+--- Testing: sample_2_Depression_PID308 ---
+  True Label: Depressed
+  Prediction: Not Depressed (Prob: 0.6935)  -> WRONG
+  PHQ Score:  12.70
+
+--- Testing: sample_3_Depression_PID311 ---
+  True Label: Depressed
+  Prediction: Not Depressed (Prob: 0.6935)  -> WRONG
+  PHQ Score:  12.70
+
+--- Testing: sample_4_Not_Depressed_PID303 ---
+  True Label: Healthy
+  Prediction: Not Depressed (Prob: 0.6935)  -> CORRECT
+  PHQ Score:  12.70
+
+--- Testing: sample_5_Not_Depressed_PID306 ---
+  True Label: Healthy
+  Prediction: Not Depressed (Prob: 0.6935)  -> CORRECT
+  PHQ Score:  12.70
+
+--- Testing: sample_6_Not_Depressed_PID361 ---
+  True Label: Healthy
+  Prediction: Not Depressed (Prob: 0.6935)  -> CORRECT
+  PHQ Score:  12.70
+
+forrtl: error (200): program aborting due to window-CLOSE event
+Image              PC                Routine            Line        Source             
+KERNELBASE.dll     00007FF86EFFD64D  Unknown               Unknown  Unknown
+KERNEL32.DLL       00007FF87044E8D7  Unknown               Unknown  Unknown
+ntdll.dll          00007FF8718CC40C  Unknown               Unknown  Unknown

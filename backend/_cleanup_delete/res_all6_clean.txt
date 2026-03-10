@@ -1,0 +1,100 @@
+python : 2026-03-10 
+22:22:20.354818: I tensorflo
+w/core/util/port.cc:153] 
+oneDNN custom operations 
+are on. You may see 
+slightly different 
+numerical results due to 
+floating-point round-off 
+errors from different 
+computation orders. To turn 
+them off, set the 
+environment variable 
+`TF_ENABLE_ONEDNN_OPTS=0`.
+At line:1 char:1
++ python test_all6.py > 
+res_all6.txt 2>&1 ; python 
+-c "try:
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2026-  
+  03-10 22:2...ONEDNN_OPT   
+ S=0`.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+Some weights of 
+RobertaModel were not 
+initialized from the model 
+checkpoint at 
+mental/mental-roberta-base 
+and are newly initialized: 
+['pooler.dense.bias', 
+'pooler.dense.weight']
+You should probably TRAIN 
+this model on a down-stream 
+task to be able to use it 
+for predictions and 
+inference.
+
+============================================================
+TESTING sample_1_Depression_PID346
+  PID=346, Expected=Depression, PHQ8=23.0
+  Survey: stress=Yes, habits=Yes, history=Yes, family=Yes, coping=Yes, social=Yes
+DEBUG: Extracted Sentiment: {'neg': 0.023, 'neu': 0.789, 'pos': 0.188, 'compound': 0.998}
+DEBUG: Fusion Prediction: model=0.5346, survey=0.9753 (6/6 flags), final=0.7990
+  RESULT: Prediction: Depression [OK]
+
+============================================================
+TESTING sample_2_Depression_PID308
+  PID=308, Expected=Depression, PHQ8=22.0
+  Survey: stress=Yes, habits=Yes, history=Yes, family=Yes, coping=Yes, social=Yes
+DEBUG: Extracted Sentiment: {'neg': 0.04, 'neu': 0.793, 'pos': 0.166, 'compound': 0.9945}
+DEBUG: Fusion Prediction: model=0.5348, survey=0.9811 (6/6 flags), final=0.8026
+  RESULT: Prediction: Depression [OK]
+
+============================================================
+TESTING sample_3_Depression_PID311
+  PID=311, Expected=Depression, PHQ8=21.0
+  Survey: stress=Yes, habits=Yes, history=Yes, family=Yes, coping=Yes, social=Yes
+DEBUG: Extracted Sentiment: {'neg': 0.113, 'neu': 0.74, 'pos': 0.147, 'compound': 0.8186}
+DEBUG: Fusion Prediction: model=0.5348, survey=0.9949 (6/6 flags), final=0.8109
+  RESULT: Prediction: Depression [OK]
+
+============================================================
+TESTING sample_4_Not_Depressed_PID303
+  PID=303, Expected=Not Depressed, PHQ8=0.0
+  Survey: stress=No, habits=No, history=No, family=No, coping=No, social=No
+DEBUG: Extracted Sentiment: {'neg': 0.037, 'neu': 0.752, 'pos': 0.212, 'compound': 0.9976}
+DEBUG: Fusion Prediction: model=0.5380, survey=0.0000 (0/6 flags), final=0.2152
+  RESULT: Prediction: Not Depressed [OK]
+
+============================================================
+TESTING sample_5_Not_Depressed_PID306
+  PID=306, Expected=Not Depressed, PHQ8=0.0
+  Survey: stress=No, habits=No, history=No, family=No, coping=No, social=No
+DEBUG: Extracted Sentiment: {'neg': 0.044, 'neu': 0.8, 'pos': 0.156, 'compound': 0.995}
+DEBUG: Fusion Prediction: model=0.5372, survey=0.0000 (0/6 flags), final=0.2149
+  RESULT: Prediction: Not Depressed [OK]
+
+============================================================
+TESTING sample_6_Not_Depressed_PID361
+  PID=361, Expected=Not Depressed, PHQ8=0.0
+  Survey: stress=No, habits=No, history=No, family=No, coping=No, social=No
+DEBUG: Extracted Sentiment: {'neg': 0.01, 'neu': 0.853, 'pos': 0.137, 'compound': 0.9946}
+DEBUG: Fusion Prediction: model=0.5374, survey=0.0000 (0/6 flags), final=0.2149
+  RESULT: Prediction: Not Depressed [OK]
+
+============================================================
+SUMMARY:
+============================================================
+  [OK] PID 346: Expected=Depression, Got=Prediction: Depression
+  [OK] PID 308: Expected=Depression, Got=Prediction: Depression
+  [OK] PID 311: Expected=Depression, Got=Prediction: Depression
+  [OK] PID 303: Expected=Not Depressed, Got=Prediction: Not Depressed
+  [OK] PID 306: Expected=Not Depressed, Got=Prediction: Not Depressed
+  [OK] PID 361: Expected=Not Depressed, Got=Prediction: Not Depressed
+
+Accuracy: 6/6

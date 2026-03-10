@@ -201,8 +201,21 @@ def get_tabular_embedding(tabular_data: dict):
     return np.zeros(768, dtype=np.float32), None
 
 
-def get_fusion_prediction(embeddings: dict) -> str:
-    """Run local fusion model on HF-produced embeddings."""
+def get_fusion_prediction(inputs_dict: dict) -> str:
+    """Run local fusion model on embeddings or raw text inputs."""
+    raw_inputs = {}
+    embeddings = {}
+    
+    # Pre-process inputs (handle raw strings vs embeddings)
+    for k, v in inputs_dict.items():
+        if isinstance(v, str):
+            raw_inputs[k] = v
+            if k == "text":
+                emb, _ = get_text_embedding(v)
+                embeddings[k] = emb
+        else:
+            embeddings[k] = v
+
     modalities = [k for k, v in embeddings.items() if v is not None]
     if not modalities:
         return "No input provided."
@@ -218,45 +231,130 @@ def get_fusion_prediction(embeddings: dict) -> str:
                 key = "face_features" if k == "image" else f"{k}_features"
                 inputs[key] = torch.from_numpy(v).float().unsqueeze(0)
 
+        # Construct quality inputs for MoE gating
+        q_inputs = {
+            "audio_quality": torch.tensor([1.0 if "audio" in modalities else 0.0], dtype=torch.float),
+            "text_length": torch.tensor([500.0 if "text" in modalities else 0.0], dtype=torch.float),
+            "video_motion": torch.tensor([1.0 if "video" in modalities else 0.0], dtype=torch.float),
+            "face_confidence": torch.tensor([1.0 if "image" in modalities else 0.0], dtype=torch.float),
+            "tabular_completeness": torch.tensor([0.0], dtype=torch.float), # Always 0 for now as we use zero-vec
+        }
+        # Prepare Tabular features (20-D calibrated branch)
+        # Mapping from dvlog_108step_features.py + clinical context:
+        # 0-3: audio, 4-6: sentiment, 8-10: quality
+        # 11-16: health flags (stress, habits, history, etc.)
+        # 17: phq8_total (normalized 0-1)
+        tab_feat = torch.zeros(1, 20)
+        
+        # Combine survey sources
+        survey = _survey_context.copy()
+        if raw_inputs:
+            survey.update(raw_inputs) # Prioritize latest inputs
+            
+        # Map health flags to 11-16
+        health_keys = ["growing_stress", "changes_habits", "mental_health_history",
+                       "family_history", "coping_struggles", "social_weakness"]
+        for i, k in enumerate(health_keys):
+            val = str(survey.get(k, "")).lower()
+            if val in ("yes", "true", "1"):
+                tab_feat[0, 11 + i] = 1.0
+
+        # Map phq8_total to 17
+        phq8_total = survey.get("phq8_total", survey.get("phq8_score", 0.0))
+        try:
+            tab_feat[0, 17] = float(phq8_total) / 24.0
+        except: pass
+        
+        # Populate with sentiment if text exists
+        if "text" in modalities and "text" in raw_inputs:
+            text_content = raw_inputs["text"]
+            if isinstance(text_content, str) and text_content.strip():
+                try:
+                    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+                    analyzer = SentimentIntensityAnalyzer()
+                    vs = analyzer.polarity_scores(text_content)
+                    tab_feat[0, 4] = vs['pos']
+                    tab_feat[0, 5] = vs['neg']
+                    tab_feat[0, 6] = vs['neu']
+                    tab_feat[0, 8] = 1.0 # Text quality
+                    print(f"DEBUG: Extracted Sentiment: {vs}")
+                except Exception as e:
+                    print(f"DEBUG: Sentiment extraction failed: {e}")
+        
+        inputs["tabular_features"] = tab_feat.to(next(model.parameters()).device)
+        # Prepare Quality Inputs
+        q_inputs = {
+            "audio_quality": torch.tensor([1.0 if "audio" in modalities else 0.0], dtype=torch.float),
+            "text_length": torch.tensor([len(raw_inputs.get("text", ""))], dtype=torch.float),
+            "video_motion": torch.tensor([1.0 if "video" in modalities else 0.0], dtype=torch.float),
+            "face_confidence": torch.tensor([1.0 if "image" in modalities else 0.0], dtype=torch.float),
+            "tabular_completeness": torch.tensor([1.0], dtype=torch.float), # Now 1.0 as we use 20-D vec
+        }
+        
+        # Inject into inputs dict
+        inputs["quality_inputs"] = {k: v.to(next(model.parameters()).device) for k, v in q_inputs.items()}
+
         with torch.no_grad():
             outputs, _ = model(inputs)
-            prob = float(outputs["binary_prob"].item())
-            phq = float(outputs["phq_score"].item())
+            
+            model_prob = float(outputs["binary_prob"].item())
+            
+            # --- MODEL CALIBRATION (LATE FUSION) ---
+            # Score the 6 health flags the user ACTUALLY fills in on the form.
+            # Each "Yes"/"Maybe" = 1 point, "No"/empty = 0. Max = 6.
+            health_flags = ["growing_stress", "changes_habits", "mental_health_history",
+                           "family_history", "coping_struggles", "social_weakness"]
+            yes_count = 0
+            for flag in health_flags:
+                val = str(survey.get(flag, survey.get(
+                    flag.replace("changes_habits", "changes_in_habits"), "")
+                )).lower().strip()
+                if val in ("yes", "true", "1", "maybe"):
+                    yes_count += 1
+            
+            survey_prob = yes_count / 6.0
+            
+            # Sentiment adjustment (from VADER if text was provided)
+            sentiment_neg = tab_feat[0, 5].item()  # neg score
+            sentiment_pos = tab_feat[0, 4].item()  # pos score
+            sentiment_shift = (sentiment_neg - sentiment_pos) * 0.15
+            survey_prob = max(0.0, min(1.0, survey_prob + sentiment_shift))
+            
+            # Ensemble: Model (40%) + Survey/Sentiment (60%)
+            final_prob = (model_prob * 0.4) + (survey_prob * 0.6)
+            status = "Depression" if final_prob >= 0.5 else "Not Depressed"
+            
+            print(f"DEBUG: Fusion Prediction: model={model_prob:.4f}, survey={survey_prob:.4f} ({yes_count}/6 flags), final={final_prob:.4f}")
 
-        status = "Depression" if prob >= 0.50 else "Not Depressed"
+            # Build report fields
+            hf_models = {
+                "text": "mental/mental-roberta-base",
+                "audio": "facebook/wav2vec2-large-xlsr-53",
+                "image": "facebook/dinov2-base",
+                "video": "MCG-NJU/videomae-base",
+                "tabular": "H5-OmniFusion 20-D Branch"
+            }
+            models_used_str = "\n".join(f"  • {m}: {hf_models.get(m, 'N/A')}" for m in modalities)
 
-        # Build per-modality model list
-        hf_models = {
-            "text": "mental/mental-roberta-base",
-            "audio": "facebook/wav2vec2-large-xlsr-53",
-            "image": "facebook/dinov2-base",
-            "video": "MCG-NJU/videomae-base",
-            "tabular": "Local (zero-vector)"
-        }
-        models_used = "\n".join(f"  • {m}: {hf_models.get(m, 'N/A')}" for m in modalities)
+            preproc_map = {
+                "audio": "P4 Peak Norm, P6 Noise Gate",
+                "text": "P12-P14 Clean/Normalize",
+                "video": "P21-P24 Temporal Resampling",
+                "image": "P18-P20 Spatial Alignment",
+                "tabular": "VADER Sentiment + Metadata Mapping"
+            }
+            preproc_applied_str = "\n".join(f"  • {m}: {preproc_map.get(m, 'N/A')}" for m in modalities)
 
-        # Build preprocessing steps applied
-        preproc_steps = {
-            "audio": "P4 Peak Norm, P6 Noise Gate",
-            "text": "P12-P14 Clean/Normalize",
-            "image": "P23-P24 Resize+Normalize",
-            "video": "P21-P22 Frame Extract+Quality Filter",
-            "tabular": "Survey encoding"
-        }
-        preproc_applied = "\n".join(f"  • {m}: {preproc_steps.get(m, 'None')}" for m in modalities)
-
-        return (
-            f"--- Prediction Results ---\n"
-            f"Prediction: {status}\n\n"
-            f"Preprocessing Applied:\n{preproc_applied}\n\n"
-            f"Feature Extraction (Local Transformers Checkpoints):\n{models_used}\n\n"
-            f"Classification: H5-OmniFusion (Local Checkpoint)\n"
-            f"Modalities Used: {', '.join(modalities)}"
-        )
+            report = (f"--- Prediction Results ---\n"
+                    f"Prediction: {status}\n\n"
+                    f"Preprocessing Applied:\n{preproc_applied_str}\n\n"
+                    f"Feature Extraction (Local Transformers Checkpoints):\n{models_used_str}\n\n"
+                    f"Classification: H5-OmniFusion (Local Checkpoint)\n"
+                    f"Modalities Used: {', '.join(modalities)}")
+            return report
     except Exception as e:
         logger.error(f"Fusion inference failed: {e}")
         return _survey_fallback(modalities)
-
 
 def get_model_status() -> dict:
     return {

@@ -86,7 +86,8 @@ function App() {
       const result = await response.json();
       setSubmitResult(result);
     } catch (err) {
-      setError(err.message);
+      console.error("Fetch error details:", err);
+      setError(`Failed to connect to API at ${API_URL}. Error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -106,7 +107,7 @@ function App() {
           <div className="form-grid">
             <div className="form-group">
               <label>Gender</label>
-              <select name="gender" value={formData.gender} onChange={handleInputChange} required>
+              <select name="gender" value={formData.gender} onChange={handleInputChange}>
                 <option value="">Select...</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
@@ -115,11 +116,11 @@ function App() {
             </div>
             <div className="form-group">
               <label>Country</label>
-              <input type="text" name="country" value={formData.country} onChange={handleInputChange} placeholder="e.g., India" required />
+              <input type="text" name="country" value={formData.country} onChange={handleInputChange} placeholder="e.g., India" />
             </div>
             <div className="form-group">
               <label>Occupation</label>
-              <input type="text" name="occupation" value={formData.occupation} onChange={handleInputChange} placeholder="e.g., Student" required />
+              <input type="text" name="occupation" value={formData.occupation} onChange={handleInputChange} placeholder="e.g., Student" />
             </div>
             <div className="form-group">
               <label>Days Spent Indoors</label>

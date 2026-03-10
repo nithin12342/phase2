@@ -1,0 +1,15 @@
+Survey Values for PID 346
+========================================
+Expected Result: Depression
+PHQ8 Score: 23.0
+
+FILL THESE IN THE WEB APP:
+----------------------------------------
+  gender: unknown
+  growing_stress: Yes
+  changes_in_habits: Yes
+  mental_health_history: Yes
+  family_history: Yes
+  coping_struggles: Yes
+  social_weakness: Yes
+  work_interest: No

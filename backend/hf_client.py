@@ -110,14 +110,21 @@ class HFClient:
     # internal helpers
     # ------------------------------------------------------------------
     def _feature_extract_text_local(self, text: str) -> np.ndarray:
-        """Extract text feature using local transformers."""
+        """Extract true sentence embedding using mean pooling instead of raw CLS."""
         self._load_text_model()
-        inputs = self._text_tokenizer(text, return_tensors="pt", truncation=True, max_length=512, padding=True)
+        inputs = self._text_tokenizer(
+            text,
+            max_length=512,
+            truncation=True,
+            padding=True,
+            return_tensors="pt"
+        )
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
         with torch.no_grad():
             outputs = self._text_model(**inputs)
-            # CLS token (index 0) exactly matches outputs.last_hidden_state[:, 0, :] from training
-            arr = outputs.last_hidden_state[:, 0, :].cpu().numpy().flatten()
+            attention = inputs['attention_mask'].unsqueeze(-1)
+            embeddings = outputs.last_hidden_state * attention
+            arr = (embeddings.sum(dim=1) / attention.sum(dim=1)).cpu().numpy().flatten()
             
         if arr.shape[0] > EMBED_DIM:
             arr = arr[:EMBED_DIM]

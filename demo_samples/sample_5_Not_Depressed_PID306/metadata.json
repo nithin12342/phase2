@@ -1,0 +1,35 @@
+{
+  "participant_id": "306",
+  "dataset": "DAIC-WOZ",
+  "label": "Not Depressed",
+  "phq8_score": 0.0,
+  "gender": "unknown",
+  "survey_values": {
+    "participant_id": "306",
+    "phq8_total": 0.0,
+    "depression_label": "Not Depressed",
+    "gender": "unknown",
+    "growing_stress": "No",
+    "changes_in_habits": "No",
+    "mental_health_history": "No",
+    "family_history": "No",
+    "coping_struggles": "No",
+    "social_weakness": "No",
+    "work_interest": "Yes"
+  },
+  "files": {
+    "audio": "audio.wav",
+    "text": "transcript.txt",
+    "image": "face_frame.jpg",
+    "video": "video_clip.mp4",
+    "tabular": "survey_data.csv"
+  },
+  "upload_instructions": {
+    "audio.wav": "Upload to Audio field",
+    "transcript.txt": "Upload to Text field",
+    "face_frame.jpg": "Upload to Photo field",
+    "video_clip.mp4": "Upload to Video field",
+    "survey": "Fill in survey dropdowns using survey_values above"
+  },
+  "expected_result": "Not Depressed"
+}
