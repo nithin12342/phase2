@@ -249,7 +249,7 @@ def get_fusion_prediction(embeddings: dict) -> str:
             f"--- Prediction Results ---\n"
             f"Prediction: {status}\n\n"
             f"Preprocessing Applied:\n{preproc_applied}\n\n"
-            f"Feature Extraction (HuggingFace Inference API):\n{models_used}\n\n"
+            f"Feature Extraction (Local Transformers Checkpoints):\n{models_used}\n\n"
             f"Classification: H5-OmniFusion (Local Checkpoint)\n"
             f"Modalities Used: {', '.join(modalities)}"
         )

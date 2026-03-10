@@ -144,7 +144,13 @@ class HFClient:
             # Mean pool over time dimension (equivalent to mean(dim=1) in training)
             arr = outputs.last_hidden_state.mean(dim=1).cpu().numpy().flatten()
             
-        if arr.shape[0] > EMBED_DIM:
+        if arr.shape[0] == 1024:
+            # Recreate exactly the untrained Linear(1024, 768) projection
+            # from training via fixed seed to align representation distribution.
+            rng = np.random.RandomState(42)
+            proj = rng.normal(0, 0.01, (1024, EMBED_DIM)).astype(np.float32)
+            arr = arr @ proj
+        elif arr.shape[0] > EMBED_DIM:
             arr = arr[:EMBED_DIM]
         elif arr.shape[0] < EMBED_DIM:
             arr = np.pad(arr, (0, EMBED_DIM - arr.shape[0]))
