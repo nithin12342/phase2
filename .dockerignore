@@ -1,26 +1,39 @@
+# Node
+node_modules
+npm-debug.log
+frontend/build
+frontend/node_modules
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.toast
+backend/uploads
+
 # Git
 .git
 .gitignore
 
-# IDE
-.vscode
-.idea
-__pycache__
+# OS
+.DS_Store
+Thumbs.db
 
-# Virtual environments
-venv
-.venv
-node_modules
-
-# Frontend (not needed for backend image)
-frontend/
-
-# Notebooks and training data
-ml_pipeline/h5_omnifusion/notebooks/
-ml_pipeline/h5_omnifusion/pretrained_models/
-ml_pipeline/h5_omnifusion/__pycache__/
-
-# Misc
+# Project Docs / reports (keep only code in container)
 *.md
-*.ipynb
-.env.local
+*.docx
+*.pdf
+!README.md
+!USAGE_GUIDE.md
+!DEMO_GUIDE.txt
+
+# Local data / models to be copied selectively
+ml_pipeline/h5_omnifusion/checkpoints/*
+!ml_pipeline/h5_omnifusion/checkpoints/fold4_phase12_latest.pt

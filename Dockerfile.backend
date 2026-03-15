@@ -1,0 +1,45 @@
+# --- Stage 1: Builder ---
+FROM python:3.11-slim AS builder
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install backend requirements into a local prefix
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# --- Stage 2: Runtime ---
+FROM python:3.11-slim
+WORKDIR /app
+
+# Install runtime system dependencies (libsndfile for audio processing)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /install /usr/local
+
+# Copy backend application code and pipelines
+COPY backend /app/backend
+COPY ml_pipeline /app/ml_pipeline
+# Environment configuration is handled within the backend directory
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app/backend:/app/ml_pipeline
+
+# Expose backend port
+EXPOSE 8000
+
+# Start the FastAPI application
+WORKDIR /app/backend
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

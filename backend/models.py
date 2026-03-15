@@ -67,11 +67,7 @@ def _survey_fallback(modalities: list) -> str:
         if str(_survey_context.get(k, "")).lower() in ("yes", "true", "1"):
             score += 10
     pct = (score / mx * 100) if mx else 0
-    lvl = "High" if pct > 50 else "Low"
-    return (f"Analysis Result (Survey-Based)\n"
-            f"Modalities: {', '.join(modalities)}\n"
-            f"Depression Risk: {pct:.1f}% ({lvl})\n"
-            f"Note: Fusion model unavailable — used questionnaire scoring.")
+    return "Depressed" if pct > 50 else "Not Depressed"
 
 
 # ── HuggingFace client singleton ─────────────────────────────────────────
@@ -277,9 +273,8 @@ def get_fusion_prediction(inputs_dict: dict) -> str:
                     tab_feat[0, 5] = vs['neg']
                     tab_feat[0, 6] = vs['neu']
                     tab_feat[0, 8] = 1.0 # Text quality
-                    print(f"DEBUG: Extracted Sentiment: {vs}")
                 except Exception as e:
-                    print(f"DEBUG: Sentiment extraction failed: {e}")
+                    pass
         
         inputs["tabular_features"] = tab_feat.to(next(model.parameters()).device)
         # Prepare Quality Inputs
@@ -322,36 +317,9 @@ def get_fusion_prediction(inputs_dict: dict) -> str:
             
             # Ensemble: Model (40%) + Survey/Sentiment (60%)
             final_prob = (model_prob * 0.4) + (survey_prob * 0.6)
-            status = "Depression" if final_prob >= 0.5 else "Not Depressed"
+            status = "Depressed" if final_prob >= 0.5 else "Not Depressed"
             
-            print(f"DEBUG: Fusion Prediction: model={model_prob:.4f}, survey={survey_prob:.4f} ({yes_count}/6 flags), final={final_prob:.4f}")
-
-            # Build report fields
-            hf_models = {
-                "text": "mental/mental-roberta-base",
-                "audio": "facebook/wav2vec2-large-xlsr-53",
-                "image": "facebook/dinov2-base",
-                "video": "MCG-NJU/videomae-base",
-                "tabular": "H5-OmniFusion 20-D Branch"
-            }
-            models_used_str = "\n".join(f"  • {m}: {hf_models.get(m, 'N/A')}" for m in modalities)
-
-            preproc_map = {
-                "audio": "P4 Peak Norm, P6 Noise Gate",
-                "text": "P12-P14 Clean/Normalize",
-                "video": "P21-P24 Temporal Resampling",
-                "image": "P18-P20 Spatial Alignment",
-                "tabular": "VADER Sentiment + Metadata Mapping"
-            }
-            preproc_applied_str = "\n".join(f"  • {m}: {preproc_map.get(m, 'N/A')}" for m in modalities)
-
-            report = (f"--- Prediction Results ---\n"
-                    f"Prediction: {status}\n\n"
-                    f"Preprocessing Applied:\n{preproc_applied_str}\n\n"
-                    f"Feature Extraction (Local Transformers Checkpoints):\n{models_used_str}\n\n"
-                    f"Classification: H5-OmniFusion (Local Checkpoint)\n"
-                    f"Modalities Used: {', '.join(modalities)}")
-            return report
+            return status
     except Exception as e:
         logger.error(f"Fusion inference failed: {e}")
         return _survey_fallback(modalities)

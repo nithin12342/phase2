@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import './App.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = ''; // Relative path handled by proxy (dev) or Nginx (prod)
 
 function App() {
   // Form state
@@ -83,8 +83,8 @@ function App() {
         throw new Error(errorMessage);
       }
 
-      const result = await response.json();
-      setSubmitResult(result);
+      const resultText = await response.text();
+      setSubmitResult({ depression_risk: resultText });
     } catch (err) {
       console.error("Fetch error details:", err);
       setError(`Failed to connect to API at ${API_URL}. Error: ${err.message}`);

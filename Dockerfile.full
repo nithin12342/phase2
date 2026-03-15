@@ -1,0 +1,52 @@
+# --- Stage 1: Frontend Build ---
+FROM node:18-alpine AS frontend-builder
+WORKDIR /build-frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
+# --- Stage 2: Backend & Runtime Environment ---
+FROM python:3.11-slim
+WORKDIR /app
+
+# Install system dependencies for supervisord, nginx, and ML libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    supervisor \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend requirements and install
+# Note: Using CPU-only torch to minimize image size significantly
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r ./backend/requirements.txt
+
+# Copy backend application code
+COPY backend /app/backend
+COPY ml_pipeline /app/ml_pipeline
+COPY demo_samples /app/demo_samples
+# Environment configuration is handled within subdirectories
+
+# Copy frontend build from stage 1 to Nginx default html folder
+COPY --from=frontend-builder /build-frontend/build /usr/share/nginx/html
+
+# Copy infrastructure configurations
+COPY infrastructure/nginx.conf /etc/nginx/sites-available/default
+COPY infrastructure/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app/backend:/app/ml_pipeline
+
+# Expose ports: 80 for Frontend (Nginx), 8000 for Backend (Uvicorn - internal/debug)
+EXPOSE 80 8000
+
+# Start supervisord to manage both processes
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

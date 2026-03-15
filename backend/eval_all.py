@@ -89,11 +89,6 @@ for folder, is_depressed in samples:
     with torch.no_grad():
         outputs, _ = _fusion_model(inputs)
         prob = float(torch.sigmoid(outputs["logits"])[0][0].item() if "logits" in outputs else outputs["binary_prob"].item())
-        phq = float(outputs["phq_score"].item())
-
     pred = "Depressed" if prob >= 0.95 else "Not Depressed"
-    correct_str = "CORRECT" if (is_depressed and pred == "Depressed") or (not is_depressed and pred == "Not Depressed") else "WRONG"
-    
-    print(f"  True Label: {'Depressed' if is_depressed else 'Healthy'}")
-    print(f"  Prediction: {pred} (Prob: {prob:.4f})  -> {correct_str}")
-    print(f"  PHQ Score:  {phq:.2f}\n")
+    print(pred)
+    break

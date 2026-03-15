@@ -13,7 +13,7 @@ import os
 import logging
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, Depends, HTTPException, Query, APIRouter, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -501,7 +501,7 @@ async def get_similar(prediction_id: str, k: int = Query(default=5, ge=1, le=20)
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
 
-@api_router.post("/submit-survey", response_model=schemas.SurveyResponse, tags=["Survey"])
+@api_router.post("/submit-survey", response_class=PlainTextResponse, tags=["Survey"])
 async def submit_survey(
     survey_data: str = Form(..., description="JSON string of survey data"),
     video: Optional[UploadFile] = File(None),
@@ -626,7 +626,7 @@ async def submit_survey(
         logger.warning(f"Vector store unavailable (non-fatal): {ve}")
     
     logger.info(f"Survey submitted successfully: {submission_id}")
-    return db_survey
+    return PlainTextResponse(content=prediction_result)
 
 
 app.include_router(api_router)

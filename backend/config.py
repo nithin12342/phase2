@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     
     request_timeout_seconds: int = 300
     
-    cors_origins: str = "http://localhost,http://localhost:3000"
+    cors_origins: str = "http://localhost,http://localhost:3000,http://localhost:8080"
     
     @property
     def cors_origins_list(self) -> list:

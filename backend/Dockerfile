@@ -12,8 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 2. Copy and build wheels for all Python dependencies
 COPY requirements.txt .
-# Build wheels instead of installing. This leaves behind all pip caches and source files!
-RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
+RUN pip wheel --no-cache-dir --wheel-dir /build/wheels --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 
 # ==========================================
@@ -31,13 +30,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Copy the pre-compiled wheels from the 'builder' stage
-COPY --from=builder /build/wheels /wheels
+# 2. Copy requirements.txt
 COPY --from=builder /build/requirements.txt .
 
-# 3. Install from the local wheels, bypassing PyPI and pip cache completely
-RUN pip install --no-cache --no-index --find-links=/wheels -r requirements.txt \
-    && rm -rf /wheels  # Clean up the wheels after installation!
+# 3. Install from local wheels via bind mount to prevent layer bloat
+RUN --mount=type=bind,from=builder,source=/build/wheels,target=/wheels \
+    pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt
 
 # 4. Copy backend application code
 COPY . .
