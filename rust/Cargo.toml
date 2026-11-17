@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/h5-kernel",
+    "crates/h5-schema",
+    "crates/preprocess/h5-audio",
+    "crates/preprocess/h5-text",
+    "crates/preprocess/h5-video",
+    "crates/preprocess/h5-face",
+    "crates/preprocess/h5-tabular",
+    "crates/preprocess/h5-fusion",
+    "crates/preprocess/h5-preprocess",
+    "crates/preprocess/h5-preprocess-infra",
+    "crates/preprocess/h5-preprocess-cli",
+    "crates/train/h5-train",
+    "crates/train/h5-train-cli",
+]
+
+[profile.release]
+opt-level = 3
+lto = "thin"

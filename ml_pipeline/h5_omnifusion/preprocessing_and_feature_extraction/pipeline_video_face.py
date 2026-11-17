@@ -615,26 +615,28 @@ class VideoPreprocessor:
     
     @torch.no_grad()
     def get_video_embedding(self, frames: np.ndarray) -> np.ndarray:
-        if 'video' not in self.models.models:
+        model = self.models.models.get('videomae') or self.models.models.get('video')
+        if model is None:
             return np.zeros(self.embed_dim)
-        
+
         try:
-            model = self.models.models['video']
-            if hasattr(self.models.processors.get('video', None), 'preprocess'):
-                proc = self.models.processors['video']
+            proc = self.models.processors.get('videomae') or self.models.processors.get('video')
+            model_dtype = next(model.parameters()).dtype
+            if proc is not None and hasattr(proc, 'preprocess'):
                 inputs = proc(list(frames), return_tensors='pt')
-                inputs = {k:v.to(self.device) for k,v in inputs.items()}
+                inputs = {k: v.to(device=self.device, dtype=model_dtype) if v.is_floating_point() else v.to(self.device) for k, v in inputs.items()}
                 outputs = model(**inputs)
-                return outputs.last_hidden_state.mean(dim=1).cpu().numpy().flatten()
+                return outputs.last_hidden_state.mean(dim=1).float().cpu().numpy().flatten()
             else:
                 frames_norm = self.normalizer.normalize(frames)
-                frames_t = torch.tensor(frames_norm, dtype=torch.float32).to(self.device)
+                frames_t = torch.tensor(frames_norm, dtype=model_dtype).to(self.device)
                 embeddings = []
                 for f in frames_t:
                     out = model.forward_features(f.unsqueeze(0))
-                    embeddings.append(out.mean(dim=1).cpu().numpy())
+                    embeddings.append(out.mean(dim=1).float().cpu().numpy())
                 return np.mean(embeddings, axis=0).flatten()
-        except:
+        except Exception as e:
+            print(f"VideoMAE Extraction Error: {e}")
             return np.zeros(self.embed_dim)
     
     def process_frames(self, frames: np.ndarray, augment: bool = False) -> Dict:
@@ -652,7 +654,10 @@ class VideoPreprocessor:
         filtered, qc = self.quality.filter_frames(frames)
         result.update(qc)
         result['quality_score'] = qc.get('frame_quality_ratio', 0)
-        
+
+        if 0 < len(filtered) < 16:
+            pad = np.repeat(filtered[-1:], 16 - len(filtered), axis=0)
+            filtered = np.concatenate([filtered, pad], axis=0)
         result['video_embedding'] = self.get_video_embedding(filtered[:16])
         result.update(self.flow.analyze(frames))
         
@@ -684,40 +689,38 @@ class FacePreprocessor:
     
     @torch.no_grad()
     def get_face_embedding(self, faces: List[np.ndarray]) -> np.ndarray:
-        """Step 31: Extract Face Embedding.
-        
-        --- PATCH: POSTER_v2 Compliance Wrapper ---
-        If specific weights aren't loaded, enforce projection to 768 for fusion safety.
-        """
-        if 'face' not in self.models.models or len(faces) == 0:
+        """Extract face embedding with the loaded DINOv2 encoder, projected to 768."""
+        model = self.models.models.get('face_encoder') or self.models.models.get('face')
+        if model is None or len(faces) == 0:
             return np.zeros(self.embed_dim)
-        
+
         try:
-            model = self.models.models['face']
+            model_dtype = next(model.parameters()).dtype
             embeddings = []
             for face in faces[:16]:
-                face_norm = self.normalizer.normalize(face[np.newaxis, ...])[0]
-                face_t = torch.tensor(face_norm, dtype=torch.float32).unsqueeze(0).to(self.device)
-                
-                out = model.forward_features(face_t)
-                if len(out.shape) == 3: 
-                    emb_vec = out.mean(dim=1)
+                face_norm = self.normalizer.normalize(face[np.newaxis, ...])
+                face_t = torch.tensor(face_norm, dtype=model_dtype).to(self.device)
+
+                if hasattr(model, 'forward_features'):
+                    out = model.forward_features(face_t)
+                    emb_vec = out.mean(dim=1) if out.dim() == 3 else out
                 else:
-                    emb_vec = out
-                
-                embeddings.append(emb_vec.cpu().numpy())
-            
+                    out = model(pixel_values=face_t).last_hidden_state
+                    emb_vec = out.mean(dim=1)
+
+                embeddings.append(emb_vec.float().cpu().numpy())
+
             mean_emb = np.mean(embeddings, axis=0).flatten()
-            
+
             if mean_emb.shape[0] != self.embed_dim:
                 if mean_emb.shape[0] > self.embed_dim:
                     mean_emb = mean_emb[:self.embed_dim]
                 else:
                     mean_emb = np.pad(mean_emb, (0, self.embed_dim - mean_emb.shape[0]))
-            
+
             return mean_emb
         except Exception as e:
-            print(f"POSTER_v2 Extraction Error: {e}")
+            print(f"Face Embedding Extraction Error: {e}")
             return np.zeros(self.embed_dim)
     
     def process_frames(self, frames: np.ndarray) -> Dict:

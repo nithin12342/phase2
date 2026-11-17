@@ -56,9 +56,10 @@ class TranscriptCleaner:
         
         try:
             if path.endswith('.csv'):
-                df = pd.read_csv(path, sep='\t', header=None, 
+                df = pd.read_csv(path, sep='\t', header=None,
                                  names=['start', 'end', 'speaker', 'text'],
                                  on_bad_lines='skip')
+                df = df[pd.to_numeric(df['start'], errors='coerce').notna()]
                 df_p = df[~df['speaker'].str.lower().str.contains('ellie', na=False)]
                 text = ' '.join(df_p['text'].dropna().astype(str).tolist())
             else:

@@ -1,0 +1,14 @@
+[package]
+name = "h5-preprocess-cli"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+h5-preprocess = { path = "../h5-preprocess" }
+h5-preprocess-infra = { path = "../h5-preprocess-infra" }
+h5-schema = { path = "../../h5-schema" }
+
+[[bin]]
+name = "h5-preprocess-cli"
+path = "src/main.rs"

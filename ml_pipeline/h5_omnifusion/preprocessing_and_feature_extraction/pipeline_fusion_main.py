@@ -215,22 +215,17 @@ class TarExtractor:
     
     def extract(self, tar_path: str) -> Optional[str]:
         import tarfile
-        
+
         if not os.path.exists(tar_path):
             return None
-            
+
         pid = os.path.basename(tar_path).split('_')[0]
-        
+        extract_path = os.path.join(self.temp_path, f'{pid}_extracted')
+
         try:
             with tarfile.open(tar_path, 'r:gz') as tar:
-                members = tar.getmembers()
-                root_folder = members[0].name.split('/')[0]
-                
-                extract_path = os.path.join(self.temp_path, root_folder)
-                
-                tar.extractall(path=self.temp_path)
-                
-                return extract_path
+                tar.extractall(path=extract_path, filter='data')
+            return extract_path
         except Exception as e:
             print(f"Tar extraction failed: {e}")
             return None
@@ -371,21 +366,22 @@ class H5OmniFusionPipeline:
             
             if audio_path:
                 print(f"  ├─ Audio: {os.path.basename(audio_path)}")
-                audio_feats = self.audio.process(audio_path, transcript_path, augment=augment)
+                audio_feats = self.audio.process_audio(audio_path, transcript_path, augment=augment)
                 self._safe_update(result, audio_feats, 'audio')
                 available_modalities.append('audio')
-            
+
             if transcript_path:
                 print(f"  ├─ Text: {os.path.basename(transcript_path)}")
-                text_feats = self.text.process(transcript_path, augment=augment)
+                text_feats = self.text.process_text(transcript_path=transcript_path, augment=augment)
                 self._safe_update(result, text_feats, 'text')
                 available_modalities.append('text')
-            
+
             if video_path:
                 print(f"  ├─ Video: {os.path.basename(video_path)}")
-                video_feats = self.video.process(video_path, augment=augment)
+                frames = self.video.extractor.extract(video_path)
+                video_feats = self.video.process_frames(frames, augment=augment)
                 self._safe_update(result, video_feats, 'video')
-                face_feats = self.face.process(video_path, augment=augment)
+                face_feats = self.face.process_frames(frames)
                 self._safe_update(result, face_feats, 'face')
                 available_modalities.append('video')
                 available_modalities.append('face')
@@ -569,7 +565,7 @@ class H5OmniFusionPipeline:
                 
                 if os.path.exists(audio_path):
                     print(f"  ├─ Audio: {audio_file}")
-                    audio_feats = self.audio.process(audio_path, None, augment=augment)
+                    audio_feats = self.audio.process_audio(audio_path, None, augment=augment)
                     self._safe_update(result, audio_feats, 'audio')
                     available_modalities.append('audio')
                 
@@ -579,7 +575,7 @@ class H5OmniFusionPipeline:
                         combined_text += f.read() + " "
             
             if combined_text.strip():
-                text_feats = self.text.process(text=combined_text.strip(), augment=augment)
+                text_feats = self.text.process_text(text=combined_text.strip(), augment=augment)
                 self._safe_update(result, text_feats, 'text')
                 available_modalities.append('text')
             
@@ -1055,7 +1051,11 @@ class H5OmniFusionPipeline:
         """
         pid = str(result['participant_id'])
         output_path = os.path.join(output_dir, f'{pid}.h5')
-        
+
+        if 'error' in result:
+            print(f"   ❌ {pid}: not saving — processing error: {result['error']}")
+            return
+
         if os.path.exists(output_path):
             print(f"   ⏭️ {pid}.h5 already exists, skipping...")
             return

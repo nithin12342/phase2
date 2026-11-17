@@ -1,0 +1,9 @@
+[package]
+name = "h5-text"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+h5-kernel = { path = "../../h5-kernel" }
+h5-schema = { path = "../../h5-schema" }

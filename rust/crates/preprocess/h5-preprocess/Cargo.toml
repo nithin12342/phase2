@@ -1,0 +1,15 @@
+[package]
+name = "h5-preprocess"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+h5-kernel = { path = "../../h5-kernel" }
+h5-schema = { path = "../../h5-schema" }
+h5-audio = { path = "../h5-audio" }
+h5-text = { path = "../h5-text" }
+h5-video = { path = "../h5-video" }
+h5-face = { path = "../h5-face" }
+h5-tabular = { path = "../h5-tabular" }
+h5-fusion = { path = "../h5-fusion" }
